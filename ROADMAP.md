@@ -15,7 +15,7 @@ Current browser testing focuses on Chrome/Chromium. Build and package Firefox al
 - [ ] Load a minimal popup, background entry point, and content script in Chrome.
 - [ ] Define the threat model and boundaries between websites, content scripts, extension pages, and privileged wallet operations.
 - [ ] Define typed messages with runtime validation and sender authorization.
-- [ ] Prototype background suspension/restart, popup closure, and browser restart before choosing how unlocked sessions work.
+- [ ] Prototype the chosen Chrome service-worker heartbeat: write a timestamp to `chrome.storage.session` on startup and every 2,000 milliseconds. Verify session continuity after popup closure and routine idle periods, and loss of the unlocked session after forced worker termination or browser restart.
 - [ ] Configure Biome formatting/linting, TypeScript checking, core unit tests, browser smoke tests, and CI.
 - [ ] Set up Playwright for Chromium extension tests and verify installed-extension flows on latest stable Chrome.
 - [ ] Check both browser packages for valid manifests, required entry points, and referenced assets.
@@ -29,7 +29,7 @@ Current browser testing focuses on Chrome/Chromium. Build and package Firefox al
 - [ ] Import and validate recovery phrases; explicitly define supported derivation paths and passphrase behavior.
 - [ ] Design a versioned encrypted vault with authenticated encryption, a reviewed password derivation scheme, and safe persistence.
 - [ ] Implement password creation/change, unlock, manual lock, and auto-lock.
-- [ ] Define and implement session behavior when the browser suspends or restarts the background context.
+- [ ] Keep unlocked secrets in worker memory, clear them on manual lock and auto-lock, and require unlocking again after worker termination or browser restart. Verify that the heartbeat does not interfere with locking.
 - [ ] Add recovery phrase backup and confirmation, with reauthentication before revealing secrets.
 - [ ] Derive multiple accounts, name them, switch between them, and copy addresses.
 - [ ] Support private-key account import and explain that these accounts are not recovered from the wallet's recovery phrase.
