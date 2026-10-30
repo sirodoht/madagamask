@@ -45,14 +45,14 @@ When two implementations begin to serve the same purpose, consolidate them. When
 
 Build these as needed, using them consistently wherever they appear:
 
-| Pattern | Shared behavior and appearance |
-| --- | --- |
-| Screen shell | Consistent header, content spacing, back navigation, and action placement |
-| Buttons | One base treatment with clear primary, secondary, and destructive variants |
-| Form fields | Persistent labels, consistent controls, help text, and nearby validation messages |
-| List rows | Shared alignment for icons, names, secondary details, amounts, and row actions |
-| Detail rows | Consistent label/value presentation for accounts, networks, fees, and permissions |
-| Status messages | Consistent loading, empty, pending, success, warning, and error presentation |
+| Pattern           | Shared behavior and appearance                                                    |
+| ----------------- | --------------------------------------------------------------------------------- |
+| Screen shell      | Consistent header, content spacing, back navigation, and action placement         |
+| Buttons           | One base treatment with clear primary, secondary, and destructive variants        |
+| Form fields       | Persistent labels, consistent controls, help text, and nearby validation messages |
+| List rows         | Shared alignment for icons, names, secondary details, amounts, and row actions    |
+| Detail rows       | Consistent label/value presentation for accounts, networks, fees, and permissions |
+| Status messages   | Consistent loading, empty, pending, success, warning, and error presentation      |
 | Dialogs and menus | Predictable dismissal, keyboard operation, focus placement, and focus restoration |
 
 Build only the variants needed by actual screens. Keep layout helpers few and general, such as vertical stacks, horizontal rows, and label/value alignment.

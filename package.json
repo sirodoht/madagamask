@@ -1,0 +1,36 @@
+{
+  "name": "madagamask",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A small Ethereum and EVM browser wallet.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": "26.13.0",
+    "npm": "11.20.0"
+  },
+  "packageManager": "npm@11.20.0",
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "build:dev": "node scripts/build.ts --development",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run check:packages",
+    "check:packages": "node --test tests/packages.test.ts",
+    "format": "biome check --write .",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/unit/*.test.ts",
+    "test:browser": "playwright test",
+    "package": "npm run build && npm run check:packages && node scripts/package.ts"
+  },
+  "dependencies": {
+    "viem": "2.57.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@playwright/test": "1.64.1",
+    "@types/chrome": "0.3.7",
+    "@types/node": "26.6.6",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

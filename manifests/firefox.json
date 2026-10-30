@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Madagamask",
+  "version": "0.1.0",
+  "description": "An early prototype of a simple Ethereum wallet. Firefox runtime is untested.",
+  "permissions": ["storage"],
+  "background": { "scripts": ["background.js"] },
+  "action": { "default_title": "Madagamask", "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "madagamask@madagamask.local",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  }
+}

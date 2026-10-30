@@ -48,19 +48,19 @@ Users can access swaps, bridges, NFT applications, and other services through ex
 
 ## Technology stack
 
-| Area | Choice |
-| --- | --- |
-| Language | Latest stable TypeScript with strict type checking |
-| Interface | Vanilla HTML, CSS, and browser DOM APIs |
-| Ethereum operations | Latest stable viem |
-| Development runtime | Latest Node.js LTS release |
-| Package manager | npm, with a committed `package-lock.json` |
-| Bundler | Latest stable esbuild, driven by a small explicit build script |
-| Type checking | TypeScript's `tsc --noEmit`, separately from bundling |
-| Core unit tests | Node.js's built-in test runner |
-| Formatting and linting | Biome |
-| Browser automation | Playwright for Chromium extension tests, with latest stable Chrome validation |
-| Browser integration | Direct extension APIs and maintained Chrome/Firefox manifests |
+| Area                   | Choice                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| Language               | Latest stable TypeScript with strict type checking                            |
+| Interface              | Vanilla HTML, CSS, and browser DOM APIs                                       |
+| Ethereum operations    | Latest stable viem                                                            |
+| Development runtime    | Latest Node.js LTS release                                                    |
+| Package manager        | npm, with a committed `package-lock.json`                                     |
+| Bundler                | Latest stable esbuild, driven by a small explicit build script                |
+| Type checking          | TypeScript's `tsc --noEmit`, separately from bundling                         |
+| Core unit tests        | Node.js's built-in test runner                                                |
+| Formatting and linting | Biome                                                                         |
+| Browser automation     | Playwright for Chromium extension tests, with latest stable Chrome validation |
+| Browser integration    | Direct extension APIs and maintained Chrome/Firefox manifests                 |
 
 The stack above is agreed. At initial setup, resolve the latest releases under this policy and record exact version pins and the npm lockfile. Use the npm version bundled with the selected Node.js release and record it. Review later upgrades explicitly so builds remain reproducible. Development-only type definitions will cover the browser and Node APIs we use. Keep Biome configuration small and shared across the repository.
 
@@ -99,13 +99,13 @@ The implementation will be original, with appropriately licensed dependencies an
 
 MetaMask serves a broad range of wallet and financial-product use cases. Madagamask's intended distinction is a narrower scope and a codebase built specifically for that scope.
 
-| Area | Madagamask's intended approach | MetaMask comparison |
-| --- | --- | --- |
-| Product focus | Everyday EVM wallet tasks and dapp access | A broader wallet with integrated products and services |
-| Trading and discovery | Use external dapps | Includes integrated trading and discovery experiences |
-| Interface | Accounts, networks, assets, activity, and clear confirmations | Accommodates a wider feature set |
-| Architecture | New implementation with few dependencies and explicit responsibilities | Mature architecture supporting a much larger product scope |
-| Licensing | OSI-approved license, with no commercial-use or user-count restrictions | Repository license imposes its defined Non-Commercial Use restriction |
+| Area                  | Madagamask's intended approach                                          | MetaMask comparison                                                   |
+| --------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Product focus         | Everyday EVM wallet tasks and dapp access                               | A broader wallet with integrated products and services                |
+| Trading and discovery | Use external dapps                                                      | Includes integrated trading and discovery experiences                 |
+| Interface             | Accounts, networks, assets, activity, and clear confirmations           | Accommodates a wider feature set                                      |
+| Architecture          | New implementation with few dependencies and explicit responsibilities  | Mature architecture supporting a much larger product scope            |
+| Licensing             | OSI-approved license, with no commercial-use or user-count restrictions | Repository license imposes its defined Non-Commercial Use restriction |
 
 MetaMask's repository license permits derivatives under a defined Non-Commercial Use restriction, which includes a provision for programs with no more than 10,000 monthly active users. It requires derivatives to retain that restriction. Those terms differ from the unrestricted commercial use required by the Open Source Definition. See the [MetaMask license](https://raw.githubusercontent.com/MetaMask/metamask-extension/main/LICENSE) and the [Open Source Definition](https://opensource.org/osd).
 
