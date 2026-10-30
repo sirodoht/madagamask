@@ -76,6 +76,7 @@ for (const browser of ["chrome", "firefox"] as const) {
     entryPoints: [
       { out: "background", in: "src/browser/background.ts" },
       { out: "content", in: "src/browser/content.ts" },
+      { out: "provider", in: "src/browser/provider.ts" },
       { out: "popup", in: "src/ui/popup.ts" },
       { out: "popup", in: "src/ui/popup.css" },
     ],

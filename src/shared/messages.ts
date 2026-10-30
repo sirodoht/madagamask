@@ -1,6 +1,7 @@
 import type { WalletStatus } from "../core/status.ts";
 
 export type Request =
+  | { version: 1; type: "site:request"; request: unknown }
   | {
       version: 1;
       type: "app:command";
@@ -27,6 +28,20 @@ export function parseRequest(value: unknown): Request | undefined {
   }
   const keys = Object.keys(value);
   const command = value as Record<string, unknown>;
+  if (command.version === 1 && command.type === "site:request") {
+    if (
+      keys.length !== 3 ||
+      !command.request ||
+      typeof command.request !== "object"
+    )
+      return undefined;
+    try {
+      if (JSON.stringify(value).length > 32768) return undefined;
+    } catch {
+      return undefined;
+    }
+    return { version: 1, type: "site:request", request: command.request };
+  }
   if (command.version === 1 && command.type === "app:command") {
     if (
       keys.length !== 4 ||

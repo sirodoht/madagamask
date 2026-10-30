@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -158,4 +159,110 @@ test("create, back up, lock, and restore a wallet through the production UI", as
     .fill("a-disposable-test-password");
   await popup.getByRole("button", { name: "Unlock", exact: true }).click();
   await expect(popup.locator(".address")).toHaveText(address ?? "");
+});
+
+test("website provider discovers, connects, signs, and hides accounts after lock", async () => {
+  const server = createServer((_request, response) => {
+    response.setHeader("Content-Type", "text/html");
+    response.end("<!doctype html><title>Test site</title><h1>Test dapp</h1>");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const bound = server.address();
+  expect(bound && typeof bound !== "string").toBeTruthy();
+  if (!bound || typeof bound === "string") throw new Error("No server port");
+  try {
+    await popup.evaluate(() =>
+      chrome.runtime.sendMessage({
+        version: 1,
+        type: "app:command",
+        action: "import",
+        params: {
+          password: "disposable-test-password",
+          phrase: "test test test test test test test test test test test junk",
+        },
+      }),
+    );
+    const site = await context.newPage();
+    await site.goto(`http://127.0.0.1:${bound.port}`);
+    type Provider = {
+      request: (request: {
+        method: string;
+        params?: unknown[];
+      }) => Promise<unknown>;
+    };
+    await site.waitForFunction(
+      () => !!(window as unknown as { ethereum?: Provider }).ethereum,
+    );
+    expect(
+      await site.evaluate(() =>
+        (window as unknown as { ethereum: Provider }).ethereum.request({
+          method: "eth_accounts",
+        }),
+      ),
+    ).toEqual([]);
+    const connecting = site.evaluate(() =>
+      (window as unknown as { ethereum: Provider }).ethereum.request({
+        method: "eth_requestAccounts",
+      }),
+    );
+    connecting.catch(() => {});
+    await expect
+      .poll(() =>
+        popup.evaluate(async () => {
+          const result = await chrome.runtime.sendMessage({
+            version: 1,
+            type: "app:command",
+            action: "state",
+            params: {},
+          });
+          return result.value.approvals.length;
+        }),
+      )
+      .toBe(1);
+    await popup.reload();
+    await popup
+      .getByRole("button", { name: `Review http://127.0.0.1:${bound.port}` })
+      .click();
+    await popup.getByRole("button", { name: "Connect", exact: true }).click();
+    const accounts = (await connecting) as string[];
+    expect(accounts).toHaveLength(1);
+    const signing = site.evaluate(
+      (account) =>
+        (window as unknown as { ethereum: Provider }).ethereum.request({
+          method: "personal_sign",
+          params: ["0x68656c6c6f", account],
+        }),
+      accounts[0],
+    );
+    signing.catch(() => {});
+    await expect
+      .poll(() =>
+        popup.evaluate(async () => {
+          const result = await chrome.runtime.sendMessage({
+            version: 1,
+            type: "app:command",
+            action: "state",
+            params: {},
+          });
+          return result.value.approvals.length;
+        }),
+      )
+      .toBe(1);
+    await popup.reload();
+    await popup
+      .getByRole("button", { name: `Review http://127.0.0.1:${bound.port}` })
+      .click();
+    await popup.getByRole("button", { name: "Approve request" }).click();
+    expect(await signing).toMatch(/^0x[0-9a-f]{130}$/i);
+    await popup.getByRole("button", { name: "Lock wallet" }).click();
+    expect(
+      await site.evaluate(() =>
+        (window as unknown as { ethereum: Provider }).ethereum.request({
+          method: "eth_accounts",
+        }),
+      ),
+    ).toEqual([]);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

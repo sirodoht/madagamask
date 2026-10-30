@@ -1,3 +1,4 @@
+import { ProviderError, type Site } from "../core/dapps.ts";
 import { UserError } from "../core/validation.ts";
 import { Wallet } from "../core/wallet.ts";
 import { parseRequest } from "../shared/messages.ts";
@@ -17,6 +18,68 @@ const wallet = new Wallet({
     await chrome.storage.local.remove(key);
   },
 });
+const sites = new Map<number, Site>();
+const lastEvents = new Map<number, string>();
+let approvalWindowId: number | undefined;
+wallet.dapps.isSiteActive = (site) =>
+  sites.get(site.tabId)?.documentId === site.documentId &&
+  sites.get(site.tabId)?.origin === site.origin;
+wallet.dapps.onRequest = async () => {
+  if (approvalWindowId !== undefined) {
+    try {
+      await chrome.windows.update(approvalWindowId, { focused: true });
+      return;
+    } catch {
+      approvalWindowId = undefined;
+    }
+  }
+  const window = await chrome.windows.create({
+    url: popupUrl,
+    type: "popup",
+    width: 420,
+    height: 720,
+  });
+  approvalWindowId = window?.id;
+};
+async function notifySites() {
+  const network = await wallet.networks.selected();
+  for (const [tabId, site] of sites) {
+    const accounts = await wallet.dapps.accounts(site.origin);
+    const chain = `0x${network.id.toString(16)}`;
+    const fingerprint = JSON.stringify([accounts, chain]);
+    if (lastEvents.get(tabId) === fingerprint) continue;
+    lastEvents.set(tabId, fingerprint);
+    for (const [event, value] of [
+      ["accountsChanged", accounts],
+      ["chainChanged", chain],
+    ] as const)
+      void chrome.tabs
+        .sendMessage(
+          tabId,
+          { type: "provider:event", event, value },
+          { documentId: site.documentId },
+        )
+        .catch(() => {});
+  }
+}
+chrome.tabs.onRemoved.addListener((tabId) => {
+  wallet.dapps.rejectTab(tabId);
+  sites.delete(tabId);
+  lastEvents.delete(tabId);
+});
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.status === "loading") {
+    wallet.dapps.rejectTab(tabId);
+    sites.delete(tabId);
+    lastEvents.delete(tabId);
+  }
+});
+chrome.windows.onRemoved.addListener((id) => {
+  if (id === approvalWindowId) {
+    approvalWindowId = undefined;
+    wallet.dapps.invalidate("Approval window closed.");
+  }
+});
 chrome.runtime.onMessage.addListener(
   (message: unknown, sender, sendResponse) => {
     const request = parseRequest(message);
@@ -27,9 +90,40 @@ chrome.runtime.onMessage.addListener(
       });
       return false;
     }
+    if (request.type === "content:hello" || request.type === "site:request") {
+      const site: Site = {
+        origin: new URL(sender.url as string).origin,
+        tabId: sender.tab?.id as number,
+        documentId: sender.documentId ?? (sender.url as string),
+      };
+      sites.set(site.tabId, site);
+      if (request.type === "site:request") {
+        void wallet.dapps.request(request.request, site).then(
+          (value) => {
+            sendResponse({ ok: true, value });
+            void notifySites();
+          },
+          (error: unknown) =>
+            sendResponse({
+              ok: false,
+              error: {
+                code: error instanceof ProviderError ? error.code : -32603,
+                message:
+                  error instanceof ProviderError || error instanceof UserError
+                    ? error.message
+                    : "Invalid or failed wallet request.",
+              },
+            }),
+        );
+        return true;
+      }
+    }
     if (request.type === "app:command") {
       void wallet.run(request.action, request.params).then(
-        (value) => sendResponse({ ok: true, value }),
+        (value) => {
+          sendResponse({ ok: true, value });
+          void notifySites();
+        },
         (error: unknown) =>
           sendResponse({
             ok: false,
@@ -45,7 +139,15 @@ chrome.runtime.onMessage.addListener(
     return false;
   },
 );
-setInterval(() => wallet.vault.expire(), 1_000);
+let lastEpoch = wallet.vault.generation();
+setInterval(() => {
+  const epoch = wallet.vault.generation();
+  if (epoch !== lastEpoch) {
+    lastEpoch = epoch;
+    wallet.dapps.invalidate("Wallet locked.");
+    void notifySites();
+  }
+}, 1_000);
 if (BROWSER_TARGET === "chrome") {
   startHeartbeat((timestamp) =>
     chrome.storage.session.set({ [HEARTBEAT_KEY]: timestamp }),

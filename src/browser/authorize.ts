@@ -35,8 +35,9 @@ export function authorize(
   try {
     const url = new URL(sender.url);
     return (
-      url.protocol === "http:" &&
-      (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+      (url.protocol === "https:" ||
+        (url.protocol === "http:" &&
+          (url.hostname === "localhost" || url.hostname === "127.0.0.1"))) &&
       (!sender.origin || sender.origin === url.origin)
     );
   } catch {

@@ -52,3 +52,10 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Local Anvil tests cover transfer confirmation, duplicate approval rejection, insufficient funds, lock invalidation, and pending cancellation. Browser regression checks remain green.
 - Public testnet transfer evidence is still outstanding; no funded public-testnet key has been supplied or used.
 - Follow-up: the first native-transfer test exposed a precompile out-of-gas revert with the exact estimate. Added a 20% gas margin and asserted receipt success explicitly. Earlier transfer tests were not all green when the initial transfer commit was made; this correction is recorded rather than treating that run as passing.
+
+### Dapp connections and signing
+
+- Added an EIP-1193 request provider and EIP-6963 discovery, isolated content bridge, top-frame HTTPS/localhost origin authorization, per-origin account permissions, connection revocation, message/typed-data signing, transaction requests, and approved network changes.
+- Approval payloads are cloned and bound to account, chain, origin, document, and deadline. Queues/rates are bounded. Lock, navigation, tab closure, context changes, and approval-window dismissal reject requests.
+- Added a local test dapp (`npm run dev:dapp`). Six production Chromium tests and sixteen unit tests pass, including real injected-provider connect/sign/lock, origin isolation, payload mutation, and stale-document rejection.
+- Compatibility is intentionally explicit: unsupported signing methods and transaction fields fail. External dapp compatibility remains unverified; the alpha does not claim MetaMask API parity.

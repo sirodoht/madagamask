@@ -13,9 +13,16 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "matches": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
       "js": ["content.js"],
-      "run_at": "document_idle",
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["provider.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
       "all_frames": false
     }
   ],

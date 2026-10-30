@@ -1,4 +1,5 @@
 import encodeQR from "qr";
+import type { Approval } from "../core/dapps.ts";
 import type { Activity, Preview } from "../core/transactions.ts";
 import type { Wallet } from "../core/wallet.ts";
 import { button, el, type Field, form } from "./dom.ts";
@@ -147,8 +148,86 @@ function backup(index?: number) {
     },
   );
 }
+async function connections() {
+  const grants = await rpc<Record<string, string[]>>("connections");
+  screen("Connected sites");
+  if (!Object.keys(grants).length) app.append(el("p", "No connected sites."));
+  for (const [origin, accounts] of Object.entries(grants)) {
+    const card = el("section", undefined, "card stack");
+    card.append(
+      el("h2", origin),
+      el("p", accounts.join(", ")),
+      button(
+        "Disconnect",
+        () =>
+          attempt(async () => {
+            await rpc("revoke", { origin });
+            await connections();
+          }),
+        true,
+      ),
+    );
+    app.append(card);
+  }
+  back();
+}
+function approval(item: Approval) {
+  screen(
+    item.method === "eth_requestAccounts"
+      ? "Connect this site?"
+      : "Review site request",
+  );
+  app.append(
+    el("h2", item.origin),
+    el("p", `${item.method} · chain ${item.chainId}`),
+    el("p", item.account, "address"),
+  );
+  if (item.method === "eth_requestAccounts")
+    app.append(
+      el(
+        "p",
+        "This site will see your selected account address. Every signature or transaction still needs your approval.",
+      ),
+    );
+  else if (item.method === "personal_sign")
+    app.append(
+      el(
+        "p",
+        "A message signature can grant access or authorize an action. Only sign a message you understand.",
+      ),
+    );
+  else if (item.method === "eth_signTypedData_v4")
+    app.append(
+      el(
+        "p",
+        "Typed signatures may grant spending rights. Read every field, especially the spender, amount, and verifying contract.",
+      ),
+    );
+  if (item.preview)
+    app.append(
+      el("p", `To: ${item.preview.to}`),
+      el("p", `Amount: ${item.preview.amount} ${item.preview.symbol}`),
+      el("p", `Maximum fee: ${item.preview.fee} ${item.preview.symbol}`),
+      el("p", `Maximum total: ${item.preview.total} ${item.preview.symbol}`),
+    );
+  app.append(el("pre", JSON.stringify(item.params, null, 2), "secret"));
+  app.append(
+    button(
+      item.method === "eth_requestAccounts" ? "Connect" : "Approve request",
+      () => attempt(() => command("approveDapp", { id: item.id })),
+    ),
+    button(
+      "Reject request",
+      () => attempt(() => command("rejectDapp", { id: item.id })),
+      true,
+    ),
+  );
+}
 function settings() {
   screen("Settings");
+  app.append(
+    button("Connected sites", () => attempt(() => connections()), true),
+  );
   app.append(
     button(
       "Add or edit network",
@@ -465,6 +544,8 @@ function home() {
     );
   } else {
     screen("Your wallet");
+    for (const item of state.approvals)
+      app.append(button(`Review ${item.origin}`, () => approval(item)));
     const networkLabel = el("label", "Network", "stack field");
     const networkSelect = el("select");
     state.networks.items.forEach((network) => {
@@ -562,7 +643,11 @@ setInterval(() => {
   if (busy || !state || document.hidden) return;
   void rpc<View>("state")
     .then((next) => {
-      if (next.vault.state !== state.vault.state) {
+      if (
+        next.vault.state !== state.vault.state ||
+        JSON.stringify(next.approvals.map((item) => item.id)) !==
+          JSON.stringify(state.approvals.map((item) => item.id))
+      ) {
         state = next;
         home();
       }

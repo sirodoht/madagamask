@@ -1,3 +1,4 @@
+import { Dapps } from "./dapps.ts";
 import { Networks } from "./networks.ts";
 import { Transactions } from "./transactions.ts";
 import { UserError } from "./validation.ts";
@@ -5,6 +6,7 @@ import { type Storage, Vault } from "./vault.ts";
 
 export class Wallet {
   readonly vault: Vault;
+  readonly dapps: Dapps;
   readonly networks: Networks;
   readonly transactions: Transactions;
   private queue: Promise<unknown> = Promise.resolve();
@@ -12,11 +14,13 @@ export class Wallet {
     this.vault = new Vault(storage);
     this.networks = new Networks(storage);
     this.transactions = new Transactions(storage, this.vault, this.networks);
+    this.dapps = new Dapps(this, storage);
   }
   async view() {
     return {
       vault: await this.vault.view(),
       networks: await this.networks.view(),
+      approvals: this.dapps.approvals(),
     };
   }
   run(action: string, params: Record<string, unknown>): Promise<unknown> {
@@ -30,6 +34,16 @@ export class Wallet {
       ].includes(action)
     )
       this.transactions.invalidate();
+    if (
+      [
+        "lock",
+        "selectAccount",
+        "selectNetwork",
+        "addNetwork",
+        "reset",
+      ].includes(action)
+    )
+      this.dapps.invalidate();
     if (action === "lock") {
       this.vault.lock();
       return this.view();
@@ -45,6 +59,17 @@ export class Wallet {
     if (!["state", "balance", "activity", "refreshActivity"].includes(action))
       this.vault.touch();
     switch (action) {
+      case "approveDapp":
+        await this.dapps.approve(p.id);
+        break;
+      case "rejectDapp":
+        this.dapps.reject(String(p.id));
+        break;
+      case "connections":
+        return this.dapps.connections();
+      case "revoke":
+        await this.dapps.revoke(String(p.origin));
+        break;
       case "prepareSend":
         return this.transactions.prepare(p.to, p.amount, p.data);
       case "approveSend":
@@ -102,6 +127,7 @@ export class Wallet {
         await this.vault.changePassword(p.password, p.newPassword);
         break;
       case "reset":
+        await this.dapps.clear();
         await this.vault.reset(p.password, p.confirmation);
         break;
       default:
