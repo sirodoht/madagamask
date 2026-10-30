@@ -66,3 +66,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - RPC eth_call is an execution check, not a safety verdict or full asset-delta simulation. Confirmations show decoded intent and explicitly state when actual asset changes are unknown. False-returning token calls and failed checks do not appear successful.
 - Bundled a compressed, MIT-licensed PhishDestroy snapshot (232,288 domains), its license and SHA-256 metadata. Matching happens locally; manual updates fetch GitHub without sending visited domains. Lists become stale after 24 hours; known blocked domains stay blocked. Failed updates preserve the previous list.
 - Eighteen unit tests, five local-chain tests, and six Chromium browser tests pass. The original Solidity test token was compiled with pinned solc 0.8.30; its source and fixture bytecode are included.
+
+### Alpha hardening and failure testing
+
+- Added an always-available lock control, stale UI-result suppression, and epoch checks for queued operations. Reset authentication now precedes permission deletion. Missing recovery phrases cannot silently create a new wallet.
+- Expanded checks: 21 unit tests, eight local-chain tests, and both package checks pass. Chain tests now exercise pre-broadcast storage failure, a lost submission response without duplicate sends, and confirmation rollback after a reorganization.
+- Fresh official Chrome stable installer supplied 156.0.8078.80. A separate raw-CDP harness, without a worker debugger attached, demonstrated 45-second idle continuity, locking after forced worker termination, and auto-lock after 65 seconds while the heartbeat retained the same worker. Reload/update harness work remains unresolved; no passing update result is claimed yet.

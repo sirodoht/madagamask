@@ -108,3 +108,22 @@ test("backup confirmation gates signing; checksum and reset are validated", asyn
   await vault.reset(password, "DELETE");
   assert.equal((await vault.view()).state, "not-created");
 });
+
+test("imported keys have separate backups and wrong-password reset preserves the wallet", async () => {
+  const { storage } = memory();
+  const vault = new Vault(storage);
+  await vault.create(password, mnemonic);
+  const key = `0x${"11".repeat(32)}`;
+  await vault.addAccount("Imported", key);
+  assert.equal((await vault.view()).accounts[1]?.imported, true);
+  assert.equal(await vault.reveal(password, 1), key);
+  assert.equal(await vault.reveal(password), mnemonic);
+  let deleted = false;
+  await assert.rejects(
+    vault.reset("wrong-password-value", "DELETE", async () => {
+      deleted = true;
+    }),
+  );
+  assert.equal(deleted, false);
+  assert.equal((await vault.view()).state, "unlocked");
+});

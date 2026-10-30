@@ -3,7 +3,7 @@ import { Networks } from "./networks.ts";
 import { Phishing, type Snapshot } from "./phishing.ts";
 import { Tokens } from "./tokens.ts";
 import { Transactions } from "./transactions.ts";
-import { UserError } from "./validation.ts";
+import { text, UserError } from "./validation.ts";
 import { type Storage, Vault } from "./vault.ts";
 
 export class Wallet {
@@ -55,7 +55,16 @@ export class Wallet {
       this.vault.lock();
       return this.view();
     }
-    const result = this.queue.then(() => this.dispatch(action, params));
+    if (action === "state") return this.view();
+    const epoch = this.vault.generation();
+    const result = this.queue.then(() => {
+      if (
+        !["activity", "refreshActivity", "connections"].includes(action) &&
+        this.vault.generation() !== epoch
+      )
+        throw new UserError("Wallet locked while the operation was queued.");
+      return this.dispatch(action, params);
+    });
     this.queue = result.catch(() => {});
     return result;
   }
@@ -126,7 +135,10 @@ export class Wallet {
         await this.vault.create(p.password);
         break;
       case "import":
-        await this.vault.create(p.password, p.phrase);
+        await this.vault.create(
+          p.password,
+          text(p.phrase, "recovery phrase", 500),
+        );
         break;
       case "unlock":
         await this.vault.unlock(p.password);
@@ -152,8 +164,9 @@ export class Wallet {
         await this.vault.changePassword(p.password, p.newPassword);
         break;
       case "reset":
-        await this.dapps.clear();
-        await this.vault.reset(p.password, p.confirmation);
+        await this.vault.reset(p.password, p.confirmation, () =>
+          this.dapps.clear(),
+        );
         break;
       default:
         throw new UserError("Unsupported wallet command.");

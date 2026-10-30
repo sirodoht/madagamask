@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { test } from "node:test";
+import { gunzipSync } from "node:zlib";
 
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 for (const browser of ["chrome", "firefox"]) {
@@ -40,11 +42,26 @@ for (const browser of ["chrome", "firefox"]) {
     assets.push(
       ...[...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1]),
     );
-    assets.push("LICENSE", "THIRD_PARTY_NOTICES.txt");
+    assets.push(
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.txt",
+      "phishing.json.gz",
+      "phishing-meta.json",
+      "PHISHING_LICENSE.txt",
+    );
     for (const asset of assets) {
       assert.match(asset, /^[a-zA-Z0-9_.-]+$/);
       assert.ok((await stat(`${directory}/${asset}`)).size > 0, asset);
     }
+    const feed = gunzipSync(await readFile(`${directory}/phishing.json.gz`));
+    const metadata = JSON.parse(
+      await readFile(`${directory}/phishing-meta.json`, "utf8"),
+    );
+    assert.equal(
+      createHash("sha256").update(feed).digest("hex"),
+      metadata.sha256,
+    );
+    assert.equal(JSON.parse(feed.toString()).length, metadata.entries);
     const files = await readdir(directory);
     assert.equal(
       files.some((file) => file.endsWith(".map") || file.endsWith(".ts")),

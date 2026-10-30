@@ -400,11 +400,17 @@ export class Vault {
     this.assertEpoch(epoch);
     this.session = { data, key, salt: encrypted.salt };
   }
-  async reset(secret: unknown, confirmation: unknown) {
+  async reset(
+    secret: unknown,
+    confirmation: unknown,
+    beforeDelete: () => Promise<void> = async () => {},
+  ) {
     if (confirmation !== "DELETE")
       throw new UserError("Type DELETE to reset this wallet.");
     const epoch = this.epoch;
     await this.decrypt(secret);
+    this.assertEpoch(epoch);
+    await beforeDelete();
     this.assertEpoch(epoch);
     await this.storage.remove(VAULT_KEY);
     this.lock();

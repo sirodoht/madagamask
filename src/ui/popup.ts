@@ -12,6 +12,7 @@ let state: View;
 let secretTimer: ReturnType<typeof setTimeout> | undefined;
 let showingSecret = false;
 let busy = false;
+let uiGeneration = 0;
 let screenId = 0;
 
 async function rpc<T = View>(
@@ -36,12 +37,14 @@ async function rpc<T = View>(
 }
 async function attempt(action: () => Promise<void>) {
   if (busy) return;
+  const generation = uiGeneration;
   busy = true;
+  app.inert = true;
   status.textContent = "Working…";
   status.dataset.state = "loading";
   try {
     await action();
-    status.textContent = "";
+    if (status.textContent === "Working…") status.textContent = "";
     status.dataset.state = "ready";
   } catch (error) {
     status.textContent =
@@ -49,6 +52,8 @@ async function attempt(action: () => Promise<void>) {
     status.dataset.state = "error";
   } finally {
     busy = false;
+    app.inert = false;
+    if (generation !== uiGeneration) home();
   }
 }
 function screen(title: string) {
@@ -72,7 +77,10 @@ function fields(
   back();
 }
 async function command(action: string, params: Record<string, unknown> = {}) {
-  state = await rpc(action, params);
+  const generation = uiGeneration;
+  const next = await rpc<View>(action, params);
+  if (generation !== uiGeneration) return;
+  state = next;
   home();
 }
 const passwordField: Field = {
@@ -683,6 +691,8 @@ function receive() {
 }
 function home() {
   const vault = state.vault;
+  const quickLock = document.getElementById("quick-lock");
+  if (quickLock) quickLock.hidden = vault.state !== "unlocked";
   if (vault.state === "not-created") {
     screen("A little simpler. All yours.");
     app.append(
@@ -706,6 +716,7 @@ function home() {
       app.append(button(`Review ${item.origin}`, () => approval(item)));
     const networkLabel = el("label", "Network", "stack field");
     const networkSelect = el("select");
+    networkSelect.setAttribute("aria-label", "Network");
     state.networks.items.forEach((network) => {
       const option = el("option", network.name);
       option.value = String(network.id);
@@ -721,6 +732,7 @@ function home() {
     app.append(networkLabel);
     const label = el("label", "Account", "stack field");
     const select = el("select");
+    select.setAttribute("aria-label", "Account");
     vault.accounts.forEach((account, index) => {
       const option = el("option", account.name);
       option.value = String(index);
@@ -816,4 +828,20 @@ setInterval(() => {
 void attempt(async () => {
   state = await rpc("state");
   home();
+});
+
+document.getElementById("quick-lock")?.addEventListener("click", () => {
+  uiGeneration += 1;
+  clearTimeout(secretTimer);
+  showingSecret = false;
+  app.replaceChildren(el("p", "Locking…"));
+  void rpc<View>("lock")
+    .then((next) => {
+      state = next;
+      home();
+    })
+    .catch(() => {
+      status.textContent =
+        "Could not confirm locking. Close the browser to end the session.";
+    });
 });

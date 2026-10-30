@@ -4,7 +4,11 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   className?: string,
 ): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag);
-  if (text !== undefined) element.textContent = text;
+  if (text !== undefined)
+    element.textContent = text.replace(
+      /[\u202a-\u202e\u2066-\u2069]/gu,
+      (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    );
   if (className) element.className = className;
   return element;
 }

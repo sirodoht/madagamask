@@ -100,3 +100,62 @@ test("unsupported methods, iframes handled by sender guard, and stale pages cann
   await assert.rejects(request.result(), /no longer active/);
   assert.deepEqual(await wallet.dapps.accounts(site.origin), []);
 });
+
+test("queued unlock cannot resurrect a wallet after an immediate lock", async () => {
+  const wallet = await setup();
+  await wallet.run("lock", {});
+  const first = wallet.run("unlock", { password: "disposable-test-password" });
+  const second = wallet.run("unlock", { password: "disposable-test-password" });
+  const failed1 = assert.rejects(first, /locked/);
+  const failed2 = assert.rejects(second, /locked/);
+  await wallet.run("lock", {});
+  await Promise.all([failed1, failed2]);
+  assert.equal((await wallet.view()).vault.state, "locked");
+});
+
+test("duplicate requests, cross-account signatures, wrong-chain typed data, and tab closure are rejected", async () => {
+  const wallet = await setup();
+  const connect = await pending(wallet, { method: "eth_requestAccounts" });
+  await assert.rejects(
+    wallet.dapps.request({ method: "eth_requestAccounts" }, site),
+    /already pending/,
+  );
+  await wallet.run("approveDapp", { id: connect.approval.id });
+  await connect.result();
+  const account = (await wallet.dapps.accounts(site.origin))[0];
+  assert.ok(account);
+  await assert.rejects(
+    wallet.dapps.request(
+      {
+        method: "personal_sign",
+        params: ["0x00", "0x0000000000000000000000000000000000000001"],
+      },
+      site,
+    ),
+    /does not match/,
+  );
+  await assert.rejects(
+    wallet.dapps.request(
+      {
+        method: "eth_signTypedData_v4",
+        params: [
+          account,
+          {
+            domain: { chainId: 1 },
+            types: { Message: [{ name: "text", type: "string" }] },
+            primaryType: "Message",
+            message: { text: "test" },
+          },
+        ],
+      },
+      site,
+    ),
+    /another chain/,
+  );
+  const signing = await pending(wallet, {
+    method: "personal_sign",
+    params: ["0x00", account],
+  });
+  wallet.dapps.rejectTab(site.tabId);
+  await assert.rejects(signing.result(), /closed or navigated/);
+});

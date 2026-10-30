@@ -106,6 +106,7 @@ export class Transactions {
   private vault: Vault;
   private networks: Networks;
   private drafts = new Map<string, Draft>();
+  private generation = 0;
   private activity: Activity[] = [];
   private ready: Promise<void>;
   constructor(storage: Storage, vault: Vault, networks: Networks) {
@@ -146,6 +147,7 @@ export class Transactions {
     });
   }
   invalidate() {
+    this.generation += 1;
     this.drafts.clear();
   }
   async list() {
@@ -171,6 +173,7 @@ export class Transactions {
     replacement?: Activity,
   ): Promise<Preview> {
     await this.ready;
+    const generation = this.generation;
     const network = await this.networks.selected();
     if (!SIGNING_CHAINS.has(network.id))
       throw new UserError(
@@ -302,6 +305,8 @@ export class Transactions {
       throw new UserError(
         "Too many pending reviews. Close an old review first.",
       );
+    if (generation !== this.generation)
+      throw new UserError("Wallet context changed during review. Try again.");
     this.drafts.set(draft.public.id, draft);
     return structuredClone(draft.public);
   }
@@ -310,6 +315,7 @@ export class Transactions {
   }
   async approve(idValue: unknown): Promise<Activity> {
     const id = text(idValue, "review ID", 100);
+    const generation = this.generation;
     const draft = this.drafts.get(id);
     this.drafts.delete(id);
     if (!draft || draft.public.expiresAt < Date.now())
@@ -360,6 +366,8 @@ export class Transactions {
         : { ...base, type: "legacy", gasPrice: draft.gasPrice ?? 0n },
     );
     this.vault.assertUnlocked(draft.epoch);
+    if (generation !== this.generation)
+      throw new UserError("Wallet context changed before signing completed.");
     const hash = keccak256(raw);
     let entry: Activity = {
       hash,
@@ -383,6 +391,10 @@ export class Transactions {
     // Persist the known hash before broadcast. A crash cannot make us forget an attempted send.
     await this.save(entry);
     this.vault.assertUnlocked(draft.epoch);
+    if (generation !== this.generation)
+      throw new UserError(
+        "Wallet context changed before submission. Check activity.",
+      );
     try {
       const returned = await rpc.sendRawTransaction({
         serializedTransaction: raw,
@@ -432,7 +444,9 @@ export class Transactions {
     await this.ready;
     const networks = await this.networks.view();
     const next = structuredClone(this.activity);
-    for (const item of next.slice(0, 100)) {
+    const started = Date.now();
+    for (const item of next.slice(0, 20)) {
+      if (Date.now() - started > 20_000) break;
       if (item.status === "replaced") continue;
       // Continue checking recent confirmations to detect shallow reorganizations.
       if (

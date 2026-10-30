@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { type ChildProcess, spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { after, before, test } from "node:test";
 import { createWalletClient, custom, erc20Abi, type Hex } from "viem";
@@ -208,4 +209,123 @@ test("import a token, read exact balance, transfer it, and decode approval inten
   );
   await wallet.run("removeToken", { address: receipt.contractAddress });
   assert.deepEqual(await wallet.run("tokens", {}), []);
+});
+
+async function freshWallet(rpcUrl = network.rpc, failActivity = () => false) {
+  const map = new Map<string, unknown>();
+  const wallet = new Wallet({
+    get: async (key) => structuredClone(map.get(key)),
+    set: async (key, value) => {
+      if (key === "activity" && failActivity())
+        throw new Error("interrupted storage write");
+      map.set(key, structuredClone(value));
+    },
+    remove: async (key) => {
+      map.delete(key);
+    },
+  });
+  await wallet.run("import", {
+    password: "disposable-test-password",
+    phrase: "test test test test test test test test test test test junk",
+  });
+  await wallet.run("addNetwork", { ...network, rpc: rpcUrl });
+  await wallet.run("selectNetwork", { id: 31337 });
+  return { wallet, map };
+}
+test("failed pre-broadcast persistence prevents submission", async () => {
+  let fail = false;
+  const { wallet } = await freshWallet(network.rpc, () => fail);
+  const account = wallet.vault.account().address;
+  const before = await client(network).getTransactionCount({
+    address: account,
+  });
+  const preview = (await wallet.run("prepareSend", {
+    to: "0x0000000000000000000000000000000000001234",
+    amount: "0.001",
+  })) as Preview;
+  fail = true;
+  await assert.rejects(
+    wallet.run("approveSend", { id: preview.id }),
+    /interrupted storage/,
+  );
+  assert.equal(
+    await client(network).getTransactionCount({ address: account }),
+    before,
+  );
+});
+test("ambiguous RPC submission preserves its hash and is resolved without resending", async () => {
+  let broadcasts = 0;
+  const proxy = createHttpServer(async (request, response) => {
+    let raw = "";
+    for await (const chunk of request) raw += chunk;
+    const body = JSON.parse(raw);
+    const upstream = await fetch(network.rpc, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: raw,
+    });
+    const result = await upstream.text();
+    if (body.method === "eth_sendRawTransaction") {
+      broadcasts += 1;
+      response.writeHead(503).end("simulated lost response");
+    } else {
+      response.setHeader("Content-Type", "application/json");
+      response.end(result);
+    }
+  });
+  await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+  const bound = proxy.address();
+  if (!bound || typeof bound === "string") throw new Error("No proxy port");
+  try {
+    const { wallet, map } = await freshWallet(`http://127.0.0.1:${bound.port}`);
+    const preview = (await wallet.run("prepareSend", {
+      to: "0x0000000000000000000000000000000000001234",
+      amount: "0.002",
+    })) as Preview;
+    const sent = (await wallet.run("approveSend", {
+      id: preview.id,
+    })) as Activity;
+    assert.equal(sent.status, "unknown");
+    assert.ok(JSON.stringify(map.get("activity")).includes(sent.hash));
+    await assert.rejects(
+      wallet.run("prepareSend", {
+        to: "0x0000000000000000000000000000000000001234",
+        amount: "0.002",
+      }),
+      /uncertain/,
+    );
+    await client(network).waitForTransactionReceipt({
+      hash: sent.hash,
+      pollingInterval: 50,
+    });
+    const items = (await wallet.run("refreshActivity", {})) as Activity[];
+    assert.equal(items[0]?.status, "confirmed");
+    assert.equal(broadcasts, 1);
+  } finally {
+    await new Promise<void>((resolve) => proxy.close(() => resolve()));
+  }
+});
+test("a chain rollback removes a previously observed confirmation", async () => {
+  const { wallet } = await freshWallet();
+  const snapshot = await rpc(network, "evm_snapshot");
+  const preview = (await wallet.run("prepareSend", {
+    to: "0x0000000000000000000000000000000000001234",
+    amount: "0.003",
+  })) as Preview;
+  const sent = (await wallet.run("approveSend", {
+    id: preview.id,
+  })) as Activity;
+  await client(network).waitForTransactionReceipt({
+    hash: sent.hash,
+    pollingInterval: 50,
+  });
+  assert.equal(
+    ((await wallet.run("refreshActivity", {})) as Activity[])[0]?.status,
+    "confirmed",
+  );
+  await rpc(network, "evm_revert", [snapshot]);
+  assert.notEqual(
+    ((await wallet.run("refreshActivity", {})) as Activity[])[0]?.status,
+    "confirmed",
+  );
 });
