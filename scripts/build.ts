@@ -65,6 +65,12 @@ for (const browser of ["chrome", "firefox"] as const) {
   );
   await copyFile("src/ui/popup.html", join(outdir, "popup.html"));
   await copyFile("LICENSE", join(outdir, "LICENSE"));
+  await copyFile("data/phishing.json.gz", join(outdir, "phishing.json.gz"));
+  await copyFile("data/phishing-meta.json", join(outdir, "phishing-meta.json"));
+  await copyFile(
+    "licenses/phishdestroy.txt",
+    join(outdir, "PHISHING_LICENSE.txt"),
+  );
   await writeFile(join(outdir, "THIRD_PARTY_NOTICES.txt"), notices);
   if (browser === "firefox") {
     await writeFile(

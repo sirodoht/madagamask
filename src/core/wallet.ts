@@ -1,26 +1,33 @@
 import { Dapps } from "./dapps.ts";
 import { Networks } from "./networks.ts";
+import { Phishing, type Snapshot } from "./phishing.ts";
+import { Tokens } from "./tokens.ts";
 import { Transactions } from "./transactions.ts";
 import { UserError } from "./validation.ts";
 import { type Storage, Vault } from "./vault.ts";
 
 export class Wallet {
   readonly vault: Vault;
+  readonly tokens: Tokens;
+  readonly phishing: Phishing;
   readonly dapps: Dapps;
   readonly networks: Networks;
   readonly transactions: Transactions;
   private queue: Promise<unknown> = Promise.resolve();
-  constructor(storage: Storage) {
+  constructor(storage: Storage, bundledPhishing?: () => Promise<Snapshot>) {
     this.vault = new Vault(storage);
     this.networks = new Networks(storage);
     this.transactions = new Transactions(storage, this.vault, this.networks);
     this.dapps = new Dapps(this, storage);
+    this.tokens = new Tokens(storage, this.networks);
+    this.phishing = new Phishing(storage, bundledPhishing);
   }
   async view() {
     return {
       vault: await this.vault.view(),
       networks: await this.networks.view(),
       approvals: this.dapps.approvals(),
+      protection: await this.phishing.view(),
     };
   }
   run(action: string, params: Record<string, unknown>): Promise<unknown> {
@@ -59,6 +66,24 @@ export class Wallet {
     if (!["state", "balance", "activity", "refreshActivity"].includes(action))
       this.vault.touch();
     switch (action) {
+      case "updateProtection":
+        return this.phishing.update();
+      case "tokens":
+        return this.tokens.list();
+      case "importToken":
+        return this.tokens.add(p.address);
+      case "removeToken":
+        await this.tokens.remove(p.address);
+        return this.tokens.list();
+      case "tokenBalance":
+        return this.tokens.balance(p.address, this.vault.account().address);
+      case "prepareTokenSend": {
+        const tx = await this.tokens.transfer(p.address, p.to, p.amount);
+        return this.transactions.prepare(tx.to, tx.amount, tx.data);
+      }
+      case "editDappAllowance":
+        await this.dapps.editAllowance(p.id, p.amount);
+        break;
       case "approveDapp":
         await this.dapps.approve(p.id);
         break;

@@ -4,15 +4,15 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 ## Status
 
-| Milestone                 | Status      | Evidence / remaining work                                                                                                                           |
-| ------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Foundation             | In progress | Pinned mise/Node/npm stack, manifests, builds, message validation, heartbeat, preview UI, unit tests. Browser checks and lifecycle validation next. |
-| 2. Vault and accounts     | Pending     |                                                                                                                                                     |
-| 3. Networks and receiving | Pending     |                                                                                                                                                     |
-| 4. Native transfers       | Pending     |                                                                                                                                                     |
-| 5. Dapp connections       | Pending     |                                                                                                                                                     |
-| 6. Tokens and protection  | Pending     |                                                                                                                                                     |
-| 7. Testnet alpha          | Pending     |                                                                                                                                                     |
+| Milestone                 | Status                                            | Evidence / remaining work                                                                                   |
+| ------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1. Foundation             | Implemented; acceptance checks pending            | Builds, CI, messaging and Chromium checks pass. Installed Chrome and debugger-free lifecycle checks remain. |
+| 2. Vault and accounts     | Implemented; broader browser checks pending       | Encryption, recovery, locking, accounts and backup flows tested.                                            |
+| 3. Networks and receiving | Implemented; two-network browser check pending    | RPC validation, balance refresh and QR receiving implemented.                                               |
+| 4. Native transfers       | Implemented locally; public-testnet check pending | Local sends/cancellation pass. No funded public-testnet transfer yet.                                       |
+| 5. Dapp connections       | Implemented; external compatibility pending       | Provider connection and signing pass in Chromium and unit tests.                                            |
+| 6. Tokens and protection  | Implemented; acceptance validation underway       | Local ERC20 import/transfer, allowance decoding/editing, execution checks and phishing protection.          |
+| 7. Testnet alpha          | In progress                                       | Hardening, broader browser/lifecycle tests, packaging and documentation next.                               |
 
 ## Decisions and limits
 
@@ -59,3 +59,10 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Approval payloads are cloned and bound to account, chain, origin, document, and deadline. Queues/rates are bounded. Lock, navigation, tab closure, context changes, and approval-window dismissal reject requests.
 - Added a local test dapp (`npm run dev:dapp`). Six production Chromium tests and sixteen unit tests pass, including real injected-provider connect/sign/lock, origin isolation, payload mutation, and stale-document rejection.
 - Compatibility is intentionally explicit: unsupported signing methods and transaction fields fail. External dapp compatibility remains unverified; the alpha does not claim MetaMask API parity.
+
+### Tokens and clearer confirmations
+
+- Added ERC20 import, metadata validation, exact-decimal balances/transfers, removal, approval decoding, unlimited-allowance warnings, and allowance editing with a fresh review.
+- RPC eth_call is an execution check, not a safety verdict or full asset-delta simulation. Confirmations show decoded intent and explicitly state when actual asset changes are unknown. False-returning token calls and failed checks do not appear successful.
+- Bundled a compressed, MIT-licensed PhishDestroy snapshot (232,288 domains), its license and SHA-256 metadata. Matching happens locally; manual updates fetch GitHub without sending visited domains. Lists become stale after 24 hours; known blocked domains stay blocked. Failed updates preserve the previous list.
+- Eighteen unit tests, five local-chain tests, and six Chromium browser tests pass. The original Solidity test token was compiled with pinned solc 0.8.30; its source and fixture bytecode are included.

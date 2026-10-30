@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { type ChildProcess, spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { after, before, test } from "node:test";
+import { createWalletClient, custom, erc20Abi, type Hex } from "viem";
+import { mnemonicToAccount } from "viem/accounts";
 import { client, type Network, rpc } from "../../src/core/networks.ts";
 import {
   type Activity,
@@ -143,4 +146,66 @@ test("pending transactions support fee-bumped cancellation", async () => {
     items.find((item) => item.hash === initial.hash)?.status,
     "replaced",
   );
+});
+
+test("import a token, read exact balance, transfer it, and decode approval intent", async () => {
+  const fixture = JSON.parse(
+    await readFile("tests/fixtures/test-token.json", "utf8"),
+  );
+  const account = mnemonicToAccount(
+    "test test test test test test test test test test test junk",
+  );
+  const chain = client(network).chain;
+  const deployer = createWalletClient({
+    account,
+    chain,
+    transport: custom({
+      request: ({ method, params }) =>
+        rpc(network, method, params as unknown[]),
+    }),
+  });
+  const hash = await deployer.deployContract({
+    abi: fixture.abi,
+    bytecode: fixture.bytecode as Hex,
+  });
+  const receipt = await client(network).waitForTransactionReceipt({
+    hash,
+    pollingInterval: 50,
+  });
+  assert.ok(receipt.contractAddress);
+  const imported = (await wallet.run("importToken", {
+    address: receipt.contractAddress,
+  })) as { decimals: number; symbol: string };
+  assert.equal(imported.decimals, 6);
+  assert.equal(imported.symbol, "MTEST");
+  const before = (await wallet.run("tokenBalance", {
+    address: receipt.contractAddress,
+  })) as { balance: string };
+  assert.equal(before.balance, "1000");
+  const to = "0x0000000000000000000000000000000000001234";
+  const preview = (await wallet.run("prepareTokenSend", {
+    address: receipt.contractAddress,
+    to,
+    amount: "1.234567",
+  })) as Preview;
+  assert.equal(preview.interpretation.kind, "token-transfer");
+  assert.equal(preview.simulation.status, "passed");
+  const result = (await wallet.run("approveSend", {
+    id: preview.id,
+  })) as Activity;
+  await client(network).waitForTransactionReceipt({
+    hash: result.hash,
+    pollingInterval: 50,
+  });
+  assert.equal(
+    await client(network).readContract({
+      address: receipt.contractAddress,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [to],
+    }),
+    1234567n,
+  );
+  await wallet.run("removeToken", { address: receipt.contractAddress });
+  assert.deepEqual(await wallet.run("tokens", {}), []);
 });

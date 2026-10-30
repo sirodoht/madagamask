@@ -74,6 +74,11 @@ test("malformed messages and role escalation fail closed", async () => {
 });
 
 test("heartbeat stores only a timestamp and does not persist wallet state", async () => {
+  await expect
+    .poll(async () =>
+      Object.keys(await popup.evaluate(() => chrome.storage.session.get(null))),
+    )
+    .toEqual(["heartbeatAt"]);
   const initial = await popup.evaluate(() => chrome.storage.session.get(null));
   expect(Object.keys(initial)).toEqual(["heartbeatAt"]);
   expect(typeof initial.heartbeatAt).toBe("number");

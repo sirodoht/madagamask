@@ -9,15 +9,28 @@ import { HEARTBEAT_KEY, startHeartbeat } from "./heartbeat.ts";
 declare const BROWSER_TARGET: "chrome" | "firefox";
 const popupUrl = chrome.runtime.getURL("popup.html");
 const handle = createHandler(chrome.runtime.id, popupUrl);
-const wallet = new Wallet({
-  get: async (key) => (await chrome.storage.local.get(key))[key],
-  set: async (key, value) => {
-    await chrome.storage.local.set({ [key]: value });
+const wallet = new Wallet(
+  {
+    get: async (key) => (await chrome.storage.local.get(key))[key],
+    set: async (key, value) => {
+      await chrome.storage.local.set({ [key]: value });
+    },
+    remove: async (key) => {
+      await chrome.storage.local.remove(key);
+    },
   },
-  remove: async (key) => {
-    await chrome.storage.local.remove(key);
+  async () => {
+    const meta = (await (
+      await fetch(chrome.runtime.getURL("phishing-meta.json"))
+    ).json()) as { fetchedAt: number };
+    const response = await fetch(chrome.runtime.getURL("phishing.json.gz"));
+    if (!response.body) throw new Error("Missing protection data");
+    const domains = (await new Response(
+      response.body.pipeThrough(new DecompressionStream("gzip")),
+    ).json()) as string[];
+    return { updatedAt: meta.fetchedAt, domains };
   },
-});
+);
 const sites = new Map<number, Site>();
 const lastEvents = new Map<number, string>();
 let approvalWindowId: number | undefined;

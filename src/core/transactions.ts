@@ -14,6 +14,7 @@ import {
   SIGNING_CHAINS,
   verifyChain,
 } from "./networks.ts";
+import { interpret } from "./tokens.ts";
 import { text, UserError } from "./validation.ts";
 import type { Storage, Vault } from "./vault.ts";
 
@@ -44,6 +45,8 @@ export type Activity = {
   error?: string;
 };
 export type Preview = {
+  interpretation: ReturnType<typeof interpret>;
+  simulation: { status: "passed" | "unavailable"; message: string };
   id: string;
   from: Address;
   to: Address;
@@ -214,6 +217,12 @@ export class Transactions {
     const block = await rpc.getBlock();
     const draft: Draft = {
       public: {
+        interpretation: interpret(data, to),
+        simulation: {
+          status: "unavailable",
+          message:
+            "Contract execution has not been checked; asset changes are unknown.",
+        },
         id: crypto.randomUUID(),
         from: account.address,
         to,
@@ -252,6 +261,35 @@ export class Transactions {
       throw new UserError(
         "Insufficient balance for the amount and maximum network fee.",
       );
+    try {
+      const simulation = await rpc.call({
+        account: account.address,
+        to,
+        value: quantity,
+        data,
+      });
+      const returnedFalse =
+        ["approval", "token-transfer"].includes(
+          draft.public.interpretation.kind,
+        ) && simulation.data === `0x${"0".repeat(64)}`;
+      draft.public.simulation = returnedFalse
+        ? {
+            status: "unavailable",
+            message:
+              "Contract returned false. This token operation may fail without reverting.",
+          }
+        : {
+            status: "passed",
+            message:
+              "RPC eth_call completed at the current state. Asset changes were not independently verified; this does not prove safety.",
+          };
+    } catch {
+      draft.public.simulation = {
+        status: "unavailable",
+        message:
+          "Execution check failed or is unavailable. Asset changes and safety are unknown.",
+      };
+    }
     draft.public.fee = formatEther(fee);
     draft.public.total = formatEther(quantity + fee);
     if (replacement) draft.replaces = replacement.hash;

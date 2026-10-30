@@ -5,6 +5,8 @@ import {
   type TypedDataDefinition,
 } from "viem";
 import { rpc, SIGNING_CHAINS } from "./networks.ts";
+import type { Protection } from "./phishing.ts";
+import { editAllowance } from "./tokens.ts";
 import { address, hexData, type Preview } from "./transactions.ts";
 import { record, text, UserError } from "./validation.ts";
 import type { Storage } from "./vault.ts";
@@ -19,6 +21,7 @@ export class ProviderError extends Error {
 }
 export type Site = { origin: string; tabId: number; documentId: string };
 export type Approval = {
+  protection: Protection;
   id: string;
   origin: string;
   method: string;
@@ -175,6 +178,7 @@ export class Dapps {
     const params = payload.params === undefined ? [] : payload.params;
     if (!Array.isArray(params) || JSON.stringify(params).length > 24_000)
       throw new ProviderError(-32602, "Invalid request parameters.");
+    const protection = await this.wallet.phishing.check(site.origin);
     const network = await this.wallet.networks.selected();
     if (method === "eth_chainId") return `0x${network.id.toString(16)}`;
     if (method === "net_version") return String(network.id);
@@ -288,6 +292,7 @@ export class Dapps {
       if (!this.isSiteActive(site))
         throw new ProviderError(4001, "Requesting page is no longer active.");
       const view: Approval = {
+        protection,
         id: crypto.randomUUID(),
         origin: site.origin,
         method,
@@ -319,6 +324,27 @@ export class Dapps {
       this.inflight.delete(site.origin);
     }
   }
+  async editAllowance(idValue: unknown, amount: unknown) {
+    const id = text(idValue, "approval ID", 100);
+    const pending = this.pending.get(id);
+    if (!pending?.view.preview)
+      throw new UserError("Transaction review not found.");
+    const old = pending.view.preview;
+    const data = editAllowance(old.data, amount);
+    const preview = await this.wallet.transactions.prepare(
+      old.to,
+      old.amount,
+      data,
+    );
+    if (!this.pending.has(id)) {
+      this.wallet.transactions.cancel(preview.id);
+      throw new UserError("Request was dismissed.");
+    }
+    this.wallet.transactions.cancel(old.id);
+    pending.view.preview = preview;
+    const tx = record(pending.view.params[0]);
+    pending.view.params = [{ ...tx, data }];
+  }
   async approve(idValue: unknown) {
     const id = text(idValue, "approval ID", 100);
     const pending = this.pending.get(id);
@@ -327,6 +353,7 @@ export class Dapps {
     clearTimeout(pending.timer);
     try {
       const { view } = pending;
+      await this.wallet.phishing.check(view.origin);
       if (!this.isSiteActive(pending.site))
         throw new ProviderError(4001, "Requesting page is no longer active.");
       this.wallet.vault.assertUnlocked(pending.epoch);

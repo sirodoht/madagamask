@@ -1,5 +1,6 @@
 import encodeQR from "qr";
 import type { Approval } from "../core/dapps.ts";
+import type { Token } from "../core/tokens.ts";
 import type { Activity, Preview } from "../core/transactions.ts";
 import type { Wallet } from "../core/wallet.ts";
 import { button, el, type Field, form } from "./dom.ts";
@@ -203,14 +204,65 @@ function approval(item: Approval) {
         "Typed signatures may grant spending rights. Read every field, especially the spender, amount, and verifying contract.",
       ),
     );
-  if (item.preview)
+  app.append(
+    el(
+      "p",
+      `Phishing list: ${item.protection.status}. A site not listed can still be malicious.`,
+    ),
+  );
+  if (item.preview) {
     app.append(
       el("p", `To: ${item.preview.to}`),
       el("p", `Amount: ${item.preview.amount} ${item.preview.symbol}`),
       el("p", `Maximum fee: ${item.preview.fee} ${item.preview.symbol}`),
       el("p", `Maximum total: ${item.preview.total} ${item.preview.symbol}`),
     );
-  app.append(el("pre", JSON.stringify(item.params, null, 2), "secret"));
+    app.append(
+      el("p", item.preview.interpretation.summary),
+      el("p", item.preview.interpretation.warning),
+      el("p", item.preview.simulation.message),
+    );
+    if (item.preview.interpretation.kind === "approval")
+      app.append(
+        form(
+          [
+            {
+              key: "amount",
+              label: "Allowance in token base units",
+              help: "0 revokes allowance. Editing creates a fresh review with the exact new amount.",
+            },
+          ],
+          "Update allowance",
+          (values) =>
+            attempt(async () => {
+              state = await rpc("editDappAllowance", {
+                id: item.id,
+                amount: values.amount,
+              });
+              const updated = state.approvals.find(
+                (value) => value.id === item.id,
+              );
+              if (updated) approval(updated);
+              else home();
+            }),
+        ),
+      );
+  }
+  if (item.method === "personal_sign") {
+    try {
+      const hex = String(item.params[0]).slice(2);
+      const bytes = Uint8Array.from(hex.match(/.{2}/g) ?? [], (value) =>
+        Number.parseInt(value, 16),
+      );
+      app.append(el("pre", new TextDecoder().decode(bytes), "secret"));
+    } catch {}
+  }
+  const details = el("details");
+  details.append(
+    el("summary", "Exact request details"),
+    el("pre", JSON.stringify(item.params, null, 2), "secret"),
+  );
+  app.append(details);
   app.append(
     button(
       item.method === "eth_requestAccounts" ? "Connect" : "Approve request",
@@ -225,6 +277,26 @@ function approval(item: Approval) {
 }
 function settings() {
   screen("Settings");
+  app.append(
+    el(
+      "p",
+      `Phishing protection: ${state.protection.status}. Last update: ${state.protection.updatedAt ? new Date(state.protection.updatedAt).toLocaleString() : "never"}. Checks run locally.`,
+    ),
+    button(
+      "Update phishing list",
+      () =>
+        attempt(async () => {
+          await rpc("updateProtection");
+          state = await rpc("state");
+          settings();
+        }),
+      true,
+    ),
+    el(
+      "small",
+      "Updates fetch the MIT-licensed PhishDestroy list from GitHub. No visited domains are sent. Refresh daily; lists older than 24 hours are marked stale.",
+    ),
+  );
   app.append(
     button("Connected sites", () => attempt(() => connections()), true),
   );
@@ -372,6 +444,11 @@ function review(preview: Preview) {
     ["Maximum total", `${preview.total} ${preview.symbol}`],
   ];
   for (const [label, value] of lines) app.append(el("p", `${label}: ${value}`));
+  app.append(
+    el("p", preview.interpretation.summary),
+    el("p", preview.interpretation.warning),
+    el("p", preview.simulation.message),
+  );
   if (preview.replacement)
     app.append(
       el(
@@ -481,6 +558,87 @@ async function activity(refresh = false) {
   }
   app.append(
     button("Refresh activity", () => attempt(() => activity(true)), true),
+  );
+  back();
+}
+async function tokens() {
+  const items = await rpc<Token[]>("tokens");
+  screen("Tokens");
+  if (!items.length) app.append(el("p", "No tokens imported on this network."));
+  for (const token of items) {
+    const card = el("section", undefined, "card stack");
+    card.append(
+      el("h2", `${token.name} (${token.symbol})`),
+      el("p", token.address, "address"),
+    );
+    const balance = el("p", "Balance not loaded");
+    card.append(
+      balance,
+      button(
+        "Refresh token balance",
+        () =>
+          attempt(async () => {
+            const result = await rpc<{ balance: string; symbol: string }>(
+              "tokenBalance",
+              { address: token.address },
+            );
+            balance.textContent = `${result.balance} ${result.symbol}`;
+          }),
+        true,
+      ),
+    );
+    card.append(
+      button(`Send ${token.symbol}`, () =>
+        fields(
+          `Send ${token.symbol}`,
+          [
+            { key: "to", label: "Recipient address" },
+            {
+              key: "amount",
+              label: "Token amount",
+              help: `${token.decimals} decimal places.`,
+            },
+          ],
+          "Review token transfer",
+          async (values) =>
+            review(
+              await rpc<Preview>("prepareTokenSend", {
+                ...values,
+                address: token.address,
+              }),
+            ),
+        ),
+      ),
+      button(
+        "Remove token",
+        () =>
+          attempt(async () => {
+            await rpc("removeToken", { address: token.address });
+            await tokens();
+          }),
+        true,
+      ),
+    );
+    app.append(card);
+  }
+  app.append(
+    button("Import token", () =>
+      fields(
+        "Import token",
+        [
+          {
+            key: "address",
+            label: "Token contract address",
+            help: "Check the address independently. Names and symbols are untrusted.",
+          },
+        ],
+        "Verify and import",
+        async (values) => {
+          await rpc("importToken", values);
+          await tokens();
+        },
+      ),
+    ),
   );
   back();
 }
@@ -606,6 +764,7 @@ function home() {
         button("Receive", () => receive(), true),
         button("Send", () => send()),
         button("Activity", () => attempt(() => activity()), true),
+        button("Tokens", () => attempt(() => tokens()), true),
       );
 
       app.append(
