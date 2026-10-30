@@ -79,11 +79,16 @@ test("send, confirm, reject duplicate approval, and persist activity across rest
     id: preview.id,
   })) as Activity;
   assert.equal(activity.status, "pending");
-  await client(network).waitForTransactionReceipt({
+  const receipt = await client(network).waitForTransactionReceipt({
     hash: activity.hash,
     pollingInterval: 50,
     timeout: 5000,
   });
+  assert.equal(
+    receipt.status,
+    "success",
+    JSON.stringify({ gasUsed: receipt.gasUsed.toString(), gas: activity.gas }),
+  );
   await assert.rejects(
     wallet.run("approveSend", { id: preview.id }),
     /already used/,

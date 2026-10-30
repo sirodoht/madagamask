@@ -204,7 +204,13 @@ export class Transactions {
       )
       .map((item) => item.nonce + 1);
     const nonce = replacement?.nonce ?? Math.max(pendingNonce, ...reserved);
-    const gas = await rpc.estimateGas({ account, to, value: quantity, data });
+    const estimate = await rpc.estimateGas({
+      account,
+      to,
+      value: quantity,
+      data,
+    });
+    const gas = (estimate * 120n + 99n) / 100n;
     const block = await rpc.getBlock();
     const draft: Draft = {
       public: {
