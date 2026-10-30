@@ -52,3 +52,23 @@ if (BROWSER_TARGET === "chrome") {
   );
   void chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 }
+
+let tracking = false;
+setInterval(() => {
+  if (tracking) return;
+  tracking = true;
+  void wallet.transactions
+    .list()
+    .then(async (items) => {
+      if (
+        items.some((item) =>
+          ["submitting", "pending", "unknown"].includes(item.status),
+        )
+      )
+        await wallet.run("refreshActivity", {});
+    })
+    .catch(() => {})
+    .finally(() => {
+      tracking = false;
+    });
+}, 30_000);

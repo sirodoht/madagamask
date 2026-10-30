@@ -1,4 +1,5 @@
 import encodeQR from "qr";
+import type { Activity, Preview } from "../core/transactions.ts";
 import type { Wallet } from "../core/wallet.ts";
 import { button, el, type Field, form } from "./dom.ts";
 
@@ -281,6 +282,129 @@ function settings() {
   );
   back();
 }
+function review(preview: Preview) {
+  screen("Review transaction");
+  const lines = [
+    ["Network", `${preview.network} (chain ${preview.chainId})`],
+    ["From", preview.from],
+    ["To", preview.to],
+    ["Amount", `${preview.amount} ${preview.symbol}`],
+    ["Maximum fee", `${preview.fee} ${preview.symbol}`],
+    ["Maximum total", `${preview.total} ${preview.symbol}`],
+  ];
+  for (const [label, value] of lines) app.append(el("p", `${label}: ${value}`));
+  if (preview.replacement)
+    app.append(
+      el(
+        "p",
+        "This replaces a pending transaction. Speed-up or cancellation is not guaranteed.",
+      ),
+    );
+  if (preview.data !== "0x") {
+    app.append(el("p", "Contract interaction: effects may be unknown."));
+    const details = el("details");
+    details.append(
+      el("summary", "Transaction data"),
+      el("pre", preview.data, "secret"),
+    );
+    app.append(details);
+  }
+  app.append(
+    button("Confirm and send", () =>
+      attempt(async () => {
+        const tx = await rpc<Activity>("approveSend", { id: preview.id });
+        screen(
+          tx.status === "pending"
+            ? "Transaction submitted"
+            : "Check transaction status",
+        );
+        app.append(
+          el("p", tx.hash, "address"),
+          el(
+            "p",
+            tx.error ??
+              "Submitted does not mean confirmed. Check Activity for progress.",
+          ),
+        );
+        back();
+      }),
+    ),
+    button(
+      "Reject",
+      () =>
+        attempt(async () => {
+          await rpc("cancelSend", { id: preview.id });
+          home();
+        }),
+      true,
+    ),
+  );
+}
+function send() {
+  fields(
+    "Send test assets",
+    [
+      { key: "to", label: "Recipient address" },
+      {
+        key: "amount",
+        label: "Amount",
+        help: "Use a decimal amount. Network fees are shown before confirmation.",
+      },
+    ],
+    "Review transaction",
+    async (values) => {
+      review(await rpc<Preview>("prepareSend", values));
+    },
+  );
+}
+async function activity(refresh = false) {
+  const items = await rpc<Activity[]>(refresh ? "refreshActivity" : "activity");
+  screen("Activity");
+  app.append(
+    el(
+      "p",
+      "Transactions initiated by this wallet only. Incoming transfers and imported accounts’ past activity are not indexed.",
+    ),
+  );
+  const account = state.vault.accounts[state.vault.selected];
+  const relevant = items.filter(
+    (item) =>
+      item.chainId === state.networks.selected &&
+      item.from === account?.address,
+  );
+  if (!relevant.length) app.append(el("p", "No transactions yet."));
+  for (const item of relevant) {
+    const card = el("section", undefined, "card stack");
+    card.append(
+      el("h2", item.status),
+      el("p", item.hash, "address"),
+      el("p", `To: ${item.to}`),
+    );
+    if (item.error) card.append(el("p", item.error));
+    if (["pending", "unknown", "unseen"].includes(item.status))
+      for (const cancel of [false, true])
+        card.append(
+          button(
+            cancel ? "Cancel transaction" : "Speed up",
+            () =>
+              attempt(async () => {
+                review(
+                  await rpc<Preview>("replaceTransaction", {
+                    hash: item.hash,
+                    cancel,
+                  }),
+                );
+              }),
+            true,
+          ),
+        );
+    app.append(card);
+  }
+  app.append(
+    button("Refresh activity", () => attempt(() => activity(true)), true),
+  );
+  back();
+}
 function receive() {
   const account = state.vault.accounts[state.vault.selected];
   const network = state.networks.items.find(
@@ -399,6 +523,8 @@ function home() {
       app.append(
         button("Refresh balance", refresh, true),
         button("Receive", () => receive(), true),
+        button("Send", () => send()),
+        button("Activity", () => attempt(() => activity()), true),
       );
 
       app.append(

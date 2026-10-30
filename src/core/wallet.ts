@@ -1,14 +1,17 @@
 import { Networks } from "./networks.ts";
+import { Transactions } from "./transactions.ts";
 import { UserError } from "./validation.ts";
 import { type Storage, Vault } from "./vault.ts";
 
 export class Wallet {
   readonly vault: Vault;
   readonly networks: Networks;
+  readonly transactions: Transactions;
   private queue: Promise<unknown> = Promise.resolve();
   constructor(storage: Storage) {
     this.vault = new Vault(storage);
     this.networks = new Networks(storage);
+    this.transactions = new Transactions(storage, this.vault, this.networks);
   }
   async view() {
     return {
@@ -17,6 +20,16 @@ export class Wallet {
     };
   }
   run(action: string, params: Record<string, unknown>): Promise<unknown> {
+    if (
+      [
+        "lock",
+        "selectAccount",
+        "selectNetwork",
+        "addNetwork",
+        "reset",
+      ].includes(action)
+    )
+      this.transactions.invalidate();
     if (action === "lock") {
       this.vault.lock();
       return this.view();
@@ -29,8 +42,22 @@ export class Wallet {
     action: string,
     p: Record<string, unknown>,
   ): Promise<unknown> {
-    if (action !== "state") this.vault.touch();
+    if (!["state", "balance", "activity", "refreshActivity"].includes(action))
+      this.vault.touch();
     switch (action) {
+      case "prepareSend":
+        return this.transactions.prepare(p.to, p.amount, p.data);
+      case "approveSend":
+        return this.transactions.approve(p.id);
+      case "cancelSend":
+        this.transactions.cancel(String(p.id));
+        return this.view();
+      case "activity":
+        return this.transactions.list();
+      case "refreshActivity":
+        return this.transactions.refresh();
+      case "replaceTransaction":
+        return this.transactions.replacement(p.hash, p.cancel === true);
       case "balance": {
         const view = await this.vault.view();
         const account = view.accounts[view.selected];
