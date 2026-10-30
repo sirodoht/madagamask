@@ -11,7 +11,14 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { createWalletClient, custom, erc20Abi, type Hex } from "viem";
+import {
+  createWalletClient,
+  custom,
+  encodeFunctionData,
+  erc20Abi,
+  type Hex,
+  maxUint256,
+} from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { client, type Network, rpc } from "../../src/core/networks.ts";
 
@@ -520,6 +527,108 @@ test("production UI imports, sends native assets, imports a token, and sends tok
         }),
       )
       .toBe(1234567n);
+
+    const dappServer = createServer((_request, response) => {
+      response.setHeader("Content-Type", "text/html");
+      response.end(
+        "<!doctype html><title>Allowance test</title><h1>Disposable dapp</h1>",
+      );
+    });
+    await new Promise<void>((resolve) =>
+      dappServer.listen(0, "127.0.0.1", resolve),
+    );
+    const bound = dappServer.address();
+    if (!bound || typeof bound === "string") throw new Error("No dapp port");
+    try {
+      const site = await context.newPage();
+      const origin = `http://127.0.0.1:${bound.port}`;
+      await site.goto(origin);
+      const request = (args: { method: string; params?: unknown[] }) =>
+        site.evaluate(
+          (args) =>
+            (
+              window as unknown as {
+                ethereum: {
+                  request: (args: {
+                    method: string;
+                    params?: unknown[];
+                  }) => Promise<unknown>;
+                };
+              }
+            ).ethereum.request(args),
+          args,
+        );
+      const show = async () => {
+        await expect
+          .poll(() =>
+            popup.evaluate(
+              async () =>
+                (
+                  await chrome.runtime.sendMessage({
+                    version: 1,
+                    type: "app:command",
+                    action: "state",
+                    params: {},
+                  })
+                ).value.approvals.length,
+            ),
+          )
+          .toBe(1);
+        await popup.reload();
+        await popup
+          .getByRole("button", { name: `Review ${origin}`, exact: true })
+          .click();
+      };
+      const connecting = request({ method: "eth_requestAccounts" });
+      connecting.catch(() => {});
+      await show();
+      await popup.getByRole("button", { name: "Connect", exact: true }).click();
+      await connecting;
+      const spender = "0x0000000000000000000000000000000000005678";
+      const approving = request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from: account.address,
+            to: receipt.contractAddress,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [spender, maxUint256],
+            }),
+          },
+        ],
+      });
+      approving.catch(() => {});
+      await show();
+      await expect(popup.getByText(/UNLIMITED tokens/)).toBeVisible();
+      await popup
+        .getByLabel("Allowance in token base units", { exact: true })
+        .fill("7");
+      await popup
+        .getByRole("button", { name: "Update allowance", exact: true })
+        .click();
+      await expect(popup.getByText(/spend 7 base units/)).toBeVisible();
+      await popup
+        .getByRole("button", { name: "Approve request", exact: true })
+        .click();
+      const approvedHash = (await approving) as Hex;
+      const approvedReceipt = await client(network).waitForTransactionReceipt({
+        hash: approvedHash,
+        pollingInterval: 50,
+      });
+      expect(approvedReceipt.status).toBe("success");
+      expect(
+        await client(network).readContract({
+          address: receipt.contractAddress as Hex,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [account.address, spender],
+        }),
+      ).toBe(7n);
+    } finally {
+      await new Promise<void>((resolve) => dappServer.close(() => resolve()));
+    }
   } finally {
     anvil.kill("SIGTERM");
     await delay(100);
@@ -544,15 +653,53 @@ test("external EIP-6963 demo interoperability", async () => {
     }),
   );
   const site = await context.newPage();
+  site.on("console", (m) => {
+    if (m.type() === "error") console.log(m.text());
+  });
+  site.on("pageerror", (error) => console.log(error.message));
   await site.goto("https://eip6963.org/", { waitUntil: "domcontentloaded" });
+  await expect(site.getByText("Madagamask", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await site.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect
+    .poll(
+      () =>
+        popup.evaluate(async () => {
+          const response = await chrome.runtime.sendMessage({
+            version: 1,
+            type: "app:command",
+            action: "state",
+            params: {},
+          });
+          return response.value.approvals.length;
+        }),
+      { timeout: 15_000 },
+    )
+    .toBe(1);
+  await popup.reload();
+  await popup
+    .getByRole("button", { name: "Review https://eip6963.org", exact: true })
+    .click();
+  await popup.getByRole("button", { name: "Connect", exact: true }).click();
   console.log(
-    "External demo buttons",
-    await site.getByRole("button").allTextContents(),
+    "Connected external demo",
+    (await site.locator("body").textContent())?.slice(-2000),
   );
-  console.log(
-    "External demo text",
-    (await site.locator("body").innerText()).slice(0, 4000),
-  );
+  await expect
+    .poll(() =>
+      site.evaluate(async () => {
+        const provider = (
+          window as unknown as {
+            ethereum: {
+              request: (request: { method: string }) => Promise<unknown>;
+            };
+          }
+        ).ethereum;
+        return provider.request({ method: "eth_accounts" });
+      }),
+    )
+    .toEqual(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]);
   await site.screenshot({
     path: "artifacts/external-demo.png",
     fullPage: true,

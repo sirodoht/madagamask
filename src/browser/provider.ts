@@ -13,6 +13,11 @@ class MadagamaskProvider {
   >();
   private connected = true;
   constructor() {
+    // Dapps commonly retain these functions independently of the provider object.
+    this.request = this.request.bind(this);
+    this.on = this.on.bind(this);
+    this.removeListener = this.removeListener.bind(this);
+    this.isConnected = this.isConnected.bind(this);
     window.addEventListener("message", (event: MessageEvent) => {
       if (
         event.source !== window ||

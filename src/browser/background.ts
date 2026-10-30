@@ -157,8 +157,16 @@ setInterval(() => {
   const epoch = wallet.vault.generation();
   if (epoch !== lastEpoch) {
     lastEpoch = epoch;
-    wallet.dapps.invalidate("Wallet locked.");
-    void notifySites().catch(() => {});
+    void wallet.vault
+      .view()
+      .then((view) => {
+        if (view.state !== "unlocked") {
+          wallet.dapps.invalidate("Wallet locked.");
+          wallet.transactions.invalidate();
+        }
+        return notifySites();
+      })
+      .catch(() => {});
   }
 }, 1_000);
 if (BROWSER_TARGET === "chrome") {
