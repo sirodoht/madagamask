@@ -233,3 +233,14 @@ main h1 {
 .status {
   padding-top: var(--space-2);
 }
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.balance {
+  font-size: 1.5rem;
+  color: var(--color-text);
+  font-weight: 550;
+}

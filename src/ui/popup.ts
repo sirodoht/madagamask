@@ -771,13 +771,16 @@ function home() {
             balance.textContent = "Balance unavailable. Refresh to try again.";
         }
       };
-      app.append(
+      const actions = el("div", undefined, "action-grid");
+      actions.append(
         button("Refresh balance", refresh, true),
         button("Receive", () => receive(), true),
         button("Send", () => send()),
         button("Activity", () => attempt(() => activity()), true),
         button("Tokens", () => attempt(() => tokens()), true),
+        button("Settings", () => settings(), true),
       );
+      app.append(actions);
 
       app.append(
         el("p", account.address, "address"),
@@ -797,10 +800,6 @@ function home() {
         el("p", "Back up your recovery phrase before sending or signing."),
         button("Back up now", () => backup()),
       );
-    app.append(
-      button("Settings", () => settings(), true),
-      button("Lock wallet", () => attempt(() => command("lock")), true),
-    );
   }
 }
 document.getElementById("open-tab")?.addEventListener("click", () => {

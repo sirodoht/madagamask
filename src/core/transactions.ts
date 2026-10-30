@@ -6,6 +6,8 @@ import {
   isAddress,
   keccak256,
   parseEther,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
 } from "viem";
 import {
   client,
@@ -313,7 +315,10 @@ export class Transactions {
   cancel(id: string) {
     this.drafts.delete(id);
   }
-  async approve(idValue: unknown): Promise<Activity> {
+  async approve(
+    idValue: unknown,
+    assertRequestActive: () => void = () => {},
+  ): Promise<Activity> {
     const id = text(idValue, "review ID", 100);
     const generation = this.generation;
     const draft = this.drafts.get(id);
@@ -355,6 +360,7 @@ export class Transactions {
       gas: draft.gas,
       data: draft.public.data,
     };
+    assertRequestActive();
     const raw = await account.signTransaction(
       draft.maxFee !== undefined
         ? {
@@ -368,6 +374,7 @@ export class Transactions {
     this.vault.assertUnlocked(draft.epoch);
     if (generation !== this.generation)
       throw new UserError("Wallet context changed before signing completed.");
+    assertRequestActive();
     const hash = keccak256(raw);
     let entry: Activity = {
       hash,
@@ -395,6 +402,7 @@ export class Transactions {
       throw new UserError(
         "Wallet context changed before submission. Check activity.",
       );
+    assertRequestActive();
     try {
       const returned = await rpc.sendRawTransaction({
         serializedTransaction: raw,
@@ -475,11 +483,23 @@ export class Transactions {
           const old = next.find((old) => old.hash === item.replaces);
           if (old) old.status = "replaced";
         }
-      } catch {
+      } catch (error) {
+        if (!(error instanceof TransactionReceiptNotFoundError)) {
+          item.error = "Status unavailable; last known state may be stale.";
+          continue;
+        }
+        delete item.blockHash;
+        delete item.blockNumber;
+        delete item.error;
         try {
           const tx = await rpc.getTransaction({ hash: item.hash });
           item.status = tx.blockHash ? "unknown" : "pending";
-        } catch {
+        } catch (error) {
+          if (!(error instanceof TransactionNotFoundError)) {
+            item.status = "unknown";
+            item.error = "Status unavailable; last known state may be stale.";
+            continue;
+          }
           try {
             const nonce = await rpc.getTransactionCount({ address: item.from });
             item.status =

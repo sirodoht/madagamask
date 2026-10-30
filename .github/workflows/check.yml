@@ -11,8 +11,10 @@ jobs:
         with:
           node-version: "26.13.0"
           cache: npm
+      - uses: jdx/mise-action@v2
       - run: npm ci --ignore-scripts
       - run: npm run check
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: mise exec -- npm run test:chain
+      - run: mise exec -- npm run test:browser
       - run: npm run package

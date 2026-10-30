@@ -19,6 +19,7 @@ let context: BrowserContext;
 let profile: string;
 let popup: Page;
 let extensionId: string;
+const startupSamples: number[] = [];
 
 async function launchContext() {
   const path = resolve("dist/chrome");
@@ -68,7 +69,29 @@ test.beforeEach(async () => {
   await launchContext();
   popup = await context.newPage();
   await popup.setViewportSize({ width: 380, height: 600 });
+  const started = performance.now();
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(
+    popup.getByRole("heading", { name: "A little simpler. All yours." }),
+  ).toBeVisible();
+  startupSamples.push(Math.round(performance.now() - started));
+});
+test.afterAll(async () => {
+  const sorted = [...startupSamples].sort((a, b) => a - b);
+  await writeFile(
+    `artifacts/startup-${process.env.MADAGAMASK_BROWSER ?? "chromium"}.json`,
+    JSON.stringify(
+      {
+        measurement:
+          "popup navigation to ready onboarding; new profiles, worker already loaded",
+        samplesMs: startupSamples,
+        medianMs: sorted[Math.floor(sorted.length / 2)],
+        maxMs: Math.max(...sorted),
+      },
+      null,
+      2,
+    ),
+  );
 });
 
 test.afterEach(async () => {
@@ -503,12 +526,12 @@ test("production UI imports, sends native assets, imports a token, and sends tok
   }
 });
 
-test("external EIP-6963 test dapp interoperability", async () => {
+test("external EIP-6963 demo interoperability", async () => {
   test.skip(
     process.env.MADAGAMASK_EXTERNAL_DAPP !== "1",
     "Explicit external-site validation only",
   );
-  test.setTimeout(60_000);
+  test.setTimeout(45_000);
   await popup.evaluate(() =>
     chrome.runtime.sendMessage({
       version: 1,
@@ -521,18 +544,17 @@ test("external EIP-6963 test dapp interoperability", async () => {
     }),
   );
   const site = await context.newPage();
-  await site.goto("https://metamask.github.io/test-dapp/", {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(
-    site.getByRole("heading", { name: "E2E Test Dapp" }),
-  ).toBeVisible();
+  await site.goto("https://eip6963.org/", { waitUntil: "domcontentloaded" });
   console.log(
-    "External test controls:",
+    "External demo buttons",
     await site.getByRole("button").allTextContents(),
   );
+  console.log(
+    "External demo text",
+    (await site.locator("body").innerText()).slice(0, 4000),
+  );
   await site.screenshot({
-    path: "artifacts/external-test-dapp.png",
+    path: "artifacts/external-demo.png",
     fullPage: true,
   });
 });

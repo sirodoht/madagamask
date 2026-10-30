@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener(
         void wallet.dapps.request(request.request, site).then(
           (value) => {
             sendResponse({ ok: true, value });
-            void notifySites();
+            void notifySites().catch(() => {});
           },
           (error: unknown) =>
             sendResponse({
@@ -135,7 +135,7 @@ chrome.runtime.onMessage.addListener(
       void wallet.run(request.action, request.params).then(
         (value) => {
           sendResponse({ ok: true, value });
-          void notifySites();
+          void notifySites().catch(() => {});
         },
         (error: unknown) =>
           sendResponse({
@@ -158,7 +158,7 @@ setInterval(() => {
   if (epoch !== lastEpoch) {
     lastEpoch = epoch;
     wallet.dapps.invalidate("Wallet locked.");
-    void notifySites();
+    void notifySites().catch(() => {});
   }
 }, 1_000);
 if (BROWSER_TARGET === "chrome") {

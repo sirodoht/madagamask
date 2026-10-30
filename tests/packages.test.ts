@@ -63,6 +63,23 @@ for (const browser of ["chrome", "firefox"]) {
     );
     assert.equal(JSON.parse(feed.toString()).length, metadata.entries);
     const files = await readdir(directory);
+    const budgets = {
+      "background.js": 700_000,
+      "popup.js": 40_000,
+      "content.js": 5_000,
+      "provider.js": 5_000,
+    };
+    for (const [file, budget] of Object.entries(budgets))
+      assert.ok(
+        (await stat(`${directory}/${file}`)).size <= budget,
+        `${file} exceeds size budget`,
+      );
+    const total = (
+      await Promise.all(
+        files.map(async (file) => (await stat(`${directory}/${file}`)).size),
+      )
+    ).reduce((sum, size) => sum + size, 0);
+    assert.ok(total <= 3_000_000, "Package exceeds 3 MB unpacked budget");
     assert.equal(
       files.some((file) => file.endsWith(".map") || file.endsWith(".ts")),
       false,

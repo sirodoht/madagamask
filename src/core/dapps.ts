@@ -32,6 +32,7 @@ export type Approval = {
   preview?: Preview;
 };
 type Pending = {
+  cancelled?: boolean;
   view: Approval;
   site: Site;
   epoch: number;
@@ -99,6 +100,8 @@ export class Dapps {
   private grants: Record<string, string[]> = {};
   private ready: Promise<void>;
   private pending = new Map<string, Pending>();
+  private active = new Map<string, Pending>();
+  private permissionQueue: Promise<unknown> = Promise.resolve();
   private inflight = new Set<string>();
   isSiteActive: (site: Site) => boolean = () => true;
   onRequest: () => Promise<void> = async () => {};
@@ -124,6 +127,22 @@ export class Dapps {
       this.grants[origin] = values.map(address);
     }
   }
+  private changeGrants(
+    change: (current: Record<string, string[]>) => Record<string, string[]>,
+  ) {
+    const job = this.permissionQueue.then(async () => {
+      await this.ready;
+      const next = change(this.grants);
+      if (Object.keys(next).length > 1000)
+        throw new UserError(
+          "Too many connected sites. Disconnect an old site first.",
+        );
+      await this.storage.set("permissions", { version: 1, grants: next });
+      this.grants = next;
+    });
+    this.permissionQueue = job.catch(() => {});
+    return job;
+  }
   async connections() {
     await this.ready;
     return structuredClone(this.grants);
@@ -140,17 +159,22 @@ export class Dapps {
       ? [selected]
       : [];
   }
-  invalidate(message = "Wallet context changed. Request rejected.") {
-    for (const id of [...this.pending.keys()]) this.reject(id, message);
+  invalidate(
+    message = "Wallet context changed. Request rejected.",
+    except?: string,
+  ) {
+    for (const id of [...this.pending.keys(), ...this.active.keys()])
+      if (id !== except) this.reject(id, message);
   }
   rejectTab(tabId: number) {
-    for (const [id, item] of this.pending)
+    for (const [id, item] of [...this.pending, ...this.active])
       if (item.site.tabId === tabId)
         this.reject(id, "Requesting tab closed or navigated.");
   }
   reject(id: string, message = "User rejected the request.") {
-    const pending = this.pending.get(id);
+    const pending = this.pending.get(id) ?? this.active.get(id);
     if (!pending) return;
+    pending.cancelled = true;
     this.pending.delete(id);
     clearTimeout(pending.timer);
     if (pending.view.preview)
@@ -159,17 +183,17 @@ export class Dapps {
   }
   async revoke(origin: string) {
     await this.ready;
-    const next = { ...this.grants };
-    delete next[origin];
-    await this.storage.set("permissions", { version: 1, grants: next });
-    this.grants = next;
-    for (const [id, item] of this.pending)
+    await this.changeGrants((current) => {
+      const next = { ...current };
+      delete next[origin];
+      return next;
+    });
+    for (const [id, item] of [...this.pending, ...this.active])
       if (item.view.origin === origin) this.reject(id, "Connection revoked.");
   }
   async clear() {
     this.invalidate();
-    await this.storage.remove("permissions");
-    this.grants = {};
+    await this.changeGrants(() => ({}));
   }
   async request(input: unknown, site: Site): Promise<unknown> {
     await this.ready;
@@ -205,9 +229,9 @@ export class Dapps {
     if (!account)
       throw new ProviderError(4100, "Unlock your wallet, then request again.");
     if (
-      this.pending.size + this.inflight.size >= 8 ||
+      this.pending.size + this.active.size + this.inflight.size >= 8 ||
       this.inflight.has(site.origin) ||
-      [...this.pending.values()].some(
+      [...this.pending.values(), ...this.active.values()].some(
         (item) => item.view.origin === site.origin,
       )
     )
@@ -350,10 +374,23 @@ export class Dapps {
     const pending = this.pending.get(id);
     if (!pending) throw new UserError("Request expired or was dismissed.");
     this.pending.delete(id);
+    this.active.set(id, pending);
     clearTimeout(pending.timer);
+    const assertActive = () => {
+      if (
+        pending.cancelled ||
+        !this.isSiteActive(pending.site) ||
+        pending.view.expiresAt < Date.now()
+      )
+        throw new ProviderError(
+          4001,
+          "Request was dismissed or is no longer active.",
+        );
+    };
     try {
       const { view } = pending;
       await this.wallet.phishing.check(view.origin);
+      assertActive();
       if (!this.isSiteActive(pending.site))
         throw new ProviderError(4001, "Requesting page is no longer active.");
       this.wallet.vault.assertUnlocked(pending.epoch);
@@ -366,9 +403,10 @@ export class Dapps {
         throw new ProviderError(4001, "Account or network changed.");
       let result: unknown = null;
       if (view.method === "eth_requestAccounts") {
-        const next = { ...this.grants, [view.origin]: [view.account] };
-        await this.storage.set("permissions", { version: 1, grants: next });
-        this.grants = next;
+        await this.changeGrants((current) => {
+          assertActive();
+          return { ...current, [view.origin]: [view.account] };
+        });
         this.wallet.vault.assertUnlocked(pending.epoch);
         result = [view.account];
       } else {
@@ -376,8 +414,12 @@ export class Dapps {
           throw new ProviderError(4100, "Permission was revoked.");
         if (view.method === "eth_sendTransaction") {
           if (!view.preview) throw new UserError("Missing transaction review.");
-          result = (await this.wallet.transactions.approve(view.preview.id))
-            .hash;
+          result = (
+            await this.wallet.transactions.approve(
+              view.preview.id,
+              assertActive,
+            )
+          ).hash;
         } else if (view.method === "personal_sign")
           result = await this.wallet.vault
             .account()
@@ -390,7 +432,7 @@ export class Dapps {
           await this.wallet.networks.select(
             chainId(record(view.params[0]).chainId),
           );
-          this.invalidate();
+          this.invalidate(undefined, id);
           this.wallet.transactions.invalidate();
         } else if (view.method === "wallet_addEthereumChain") {
           const data = record(view.params[0]);
@@ -401,11 +443,17 @@ export class Dapps {
             rpc: (data.rpcUrls as unknown[])[0],
             symbol: currency.symbol,
           });
-          this.invalidate();
+          this.invalidate(undefined, id);
           this.wallet.transactions.invalidate();
         }
       }
       this.wallet.vault.assertUnlocked(pending.epoch);
+      if (
+        !["wallet_switchEthereumChain", "wallet_addEthereumChain"].includes(
+          view.method,
+        )
+      )
+        assertActive();
       pending.resolve(result);
     } catch (error) {
       pending.reject(
@@ -417,6 +465,8 @@ export class Dapps {
             ),
       );
       throw error;
+    } finally {
+      this.active.delete(id);
     }
   }
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { recoverMessageAddress } from "viem";
+import { recoverMessageAddress, recoverTypedDataAddress } from "viem";
 import type { Site } from "../../src/core/dapps.ts";
 import { Wallet } from "../../src/core/wallet.ts";
 
@@ -158,4 +158,72 @@ test("duplicate requests, cross-account signatures, wrong-chain typed data, and 
   });
   wallet.dapps.rejectTab(site.tabId);
   await assert.rejects(signing.result(), /closed or navigated/);
+});
+
+test("typed-data approval signs the reviewed domain and message", async () => {
+  const wallet = await setup();
+  const connect = await pending(wallet, { method: "eth_requestAccounts" });
+  await wallet.run("approveDapp", { id: connect.approval.id });
+  await connect.result();
+  const [account] = await wallet.dapps.accounts(site.origin);
+  const data = {
+    domain: { name: "Alpha test", version: "1", chainId: 11155111 },
+    types: { Message: [{ name: "text", type: "string" }] },
+    primaryType: "Message",
+    message: { text: "Disposable signing check" },
+  } as const;
+  const signing = await pending(wallet, {
+    method: "eth_signTypedData_v4",
+    params: [account, JSON.stringify(data)],
+  });
+  await wallet.run("approveDapp", { id: signing.approval.id });
+  const signature = (await signing.result()) as `0x${string}`;
+  assert.equal(await recoverTypedDataAddress({ ...data, signature }), account);
+});
+
+test("dismissal during approval processing prevents signature delivery", async () => {
+  const wallet = await setup();
+  const connection = await pending(wallet, { method: "eth_requestAccounts" });
+  await wallet.run("approveDapp", { id: connection.approval.id });
+  await connection.result();
+  const [account] = await wallet.dapps.accounts(site.origin);
+  const signing = await pending(wallet, {
+    method: "personal_sign",
+    params: ["0x00", account],
+  });
+  let entered = () => {};
+  const reached = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const check = wallet.phishing.check.bind(wallet.phishing);
+  wallet.phishing.check = async (origin) => {
+    entered();
+    await gate;
+    return check(origin);
+  };
+  const approving = wallet.run("approveDapp", { id: signing.approval.id });
+  const rejected = assert.rejects(approving, /dismissed/);
+  await reached;
+  wallet.dapps.invalidate("Approval window closed.");
+  release();
+  await rejected;
+  await assert.rejects(signing.result(), /window closed/);
+});
+
+test("approved network switches resolve and invalidate other reviews", async () => {
+  const wallet = await setup();
+  const connection = await pending(wallet, { method: "eth_requestAccounts" });
+  await wallet.run("approveDapp", { id: connection.approval.id });
+  await connection.result();
+  const switching = await pending(wallet, {
+    method: "wallet_switchEthereumChain",
+    params: [{ chainId: "0x14a34" }],
+  });
+  await wallet.run("approveDapp", { id: switching.approval.id });
+  assert.equal(await switching.result(), null);
+  assert.equal((await wallet.networks.selected()).id, 84532);
 });

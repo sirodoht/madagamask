@@ -243,11 +243,6 @@ try {
   await command(page.sessionId, "unlock", {
     password: "disposable-lifecycle-password",
   });
-  await evaluate(
-    page.sessionId,
-    "setTimeout(()=>chrome.runtime.reload(),100);true",
-  );
-  await delay(1000);
   const manifest = JSON.parse(
     await readFile(join(extensionPath, "manifest.json"), "utf8"),
   );
@@ -256,11 +251,27 @@ try {
     join(extensionPath, "manifest.json"),
     JSON.stringify(manifest),
   );
-  await install();
+  const manager = await cdp.send<{ targetId: string }>("Target.createTarget", {
+    url: "chrome://extensions/",
+  });
+  const managerSession = await cdp.send<{ sessionId: string }>(
+    "Target.attachToTarget",
+    { targetId: manager.targetId, flatten: true },
+  );
+  await delay(1000);
+  await evaluate(
+    managerSession.sessionId,
+    "chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode:true})",
+  );
+  await evaluate(
+    managerSession.sessionId,
+    `chrome.developerPrivate.reload(${JSON.stringify(extensionId)},{failQuietly:false})`,
+  );
+  await delay(1000);
   page = await open();
   assert.equal((await command(page.sessionId, "state")).vault.state, "locked");
   evidence.extensionReload =
-    "reload and manifest upgrade to 0.1.1 in isolated copy: vault preserved; session locked";
+    "developer reload and manifest upgrade to 0.1.1 in isolated copy: vault preserved; session locked";
   await command(page.sessionId, "unlock", {
     password: "disposable-lifecycle-password",
   });

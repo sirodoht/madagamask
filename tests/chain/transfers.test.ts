@@ -329,3 +329,27 @@ test("a chain rollback removes a previously observed confirmation", async () => 
     "confirmed",
   );
 });
+
+test("dapp dismissal during persistence prevents broadcasting a signed transaction", async () => {
+  let active = true;
+  const { wallet } = await freshWallet(network.rpc, () => {
+    active = false;
+    return false;
+  });
+  const from = wallet.vault.account().address;
+  const before = await client(network).getTransactionCount({ address: from });
+  const preview = await wallet.transactions.prepare(
+    "0x0000000000000000000000000000000000001234",
+    "0.001",
+  );
+  await assert.rejects(
+    wallet.transactions.approve(preview.id, () => {
+      if (!active) throw new Error("Request dismissed");
+    }),
+    /dismissed/,
+  );
+  assert.equal(
+    await client(network).getTransactionCount({ address: from }),
+    before,
+  );
+});

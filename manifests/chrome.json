@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Madagamask",
   "version": "0.1.0",
-  "description": "An early prototype of a simple Ethereum wallet. Wallet creation is not available yet.",
+  "description": "A small Ethereum wallet for test assets: accounts, tokens, transfers, and dapp approvals. Unaudited testnet alpha.",
   "permissions": ["storage"],
   "background": {
     "service_worker": "background.js"
