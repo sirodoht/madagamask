@@ -1,5 +1,7 @@
 # Testnet alpha verification
 
+This report records the original alpha baseline. Later changes and their checks are recorded in [PROGRESS.md](PROGRESS.md); current package hashes are in `artifacts/SHA256SUMS`.
+
 Recorded 2026-10-30 on macOS ARM64. Runtime source: `70613a0`; deterministic packaging fix: `70c06ea`. Later documentation commits do not change the artifacts. This is implementation/testing evidence, not independent security review or public-release approval.
 
 ## Results

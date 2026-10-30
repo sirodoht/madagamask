@@ -79,7 +79,7 @@ test.beforeEach(async () => {
   const started = performance.now();
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(
-    popup.getByRole("heading", { name: "A little simpler. All yours." }),
+    popup.getByRole("heading", { name: "Ethereum wallet" }),
   ).toBeVisible();
   startupSamples.push(Math.round(performance.now() - started));
 });
@@ -108,7 +108,7 @@ test.afterEach(async () => {
 
 test("production popup loads, connects, and opens the full view", async () => {
   await expect(
-    popup.getByRole("heading", { name: "A little simpler. All yours." }),
+    popup.getByRole("heading", { name: "Ethereum wallet" }),
   ).toBeVisible();
   await expect(popup.getByRole("status")).toHaveText("");
   await expect(popup.getByRole("button", { name: "Try again" })).toBeHidden();

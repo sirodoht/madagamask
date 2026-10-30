@@ -92,3 +92,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Documentation now covers installation, updates, recovery, supported methods/chains, privacy, simulation and phishing limitations, history coverage, and test commands. ROADMAP checkboxes reflect implemented work; funded public-testnet acceptance is explicitly unchecked.
 - Work is committed locally in small milestones and follow-up fixes. No push, deployment, store submission, or real-money operation was performed.
 - **Next acceptance action:** use a funded disposable Sepolia or Base Sepolia wallet to complete and record a public-testnet native transfer in Chrome, including restart tracking. Do not use existing real-asset keys. This is the outstanding criterion before calling all seven milestones complete.
+
+### Onboarding wording
+
+- Replaced the promotional welcome heading with the plain label “Ethereum wallet” and updated the existing browser selectors. Rebuilt both browser packages.
+- Lint, typecheck, 24 unit tests, and both package checks pass. The initial sandboxed check could not open the local RPC test server; rerunning with local-server access passed. Browser flows were not rerun for this text-only change. Current archive hashes are in `artifacts/SHA256SUMS`; the verification report retains the original alpha baseline.

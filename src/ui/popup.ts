@@ -694,7 +694,7 @@ function home() {
   const quickLock = document.getElementById("quick-lock");
   if (quickLock) quickLock.hidden = vault.state !== "unlocked";
   if (vault.state === "not-created") {
-    screen("A little simpler. All yours.");
+    screen("Ethereum wallet");
     app.append(
       el(
         "p",
