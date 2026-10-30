@@ -4,15 +4,15 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 ## Status
 
-| Milestone                 | Status                                            | Evidence / remaining work                                                                                   |
-| ------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 1. Foundation             | Implemented; acceptance checks pending            | Builds, CI, messaging and Chromium checks pass. Installed Chrome and debugger-free lifecycle checks remain. |
-| 2. Vault and accounts     | Implemented; broader browser checks pending       | Encryption, recovery, locking, accounts and backup flows tested.                                            |
-| 3. Networks and receiving | Implemented; two-network browser check pending    | RPC validation, balance refresh and QR receiving implemented.                                               |
-| 4. Native transfers       | Implemented locally; public-testnet check pending | Local sends/cancellation pass. No funded public-testnet transfer yet.                                       |
-| 5. Dapp connections       | Implemented; external compatibility pending       | Provider connection and signing pass in Chromium and unit tests.                                            |
-| 6. Tokens and protection  | Implemented; acceptance validation underway       | Local ERC20 import/transfer, allowance decoding/editing, execution checks and phishing protection.          |
-| 7. Testnet alpha          | In progress                                       | Hardening, broader browser/lifecycle tests, packaging and documentation next.                               |
+| Milestone                 | Status                                        | Evidence / remaining work                                                                                                        |
+| ------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Foundation             | Implemented and validated                     | Both builds, CI configuration, message boundaries, stable Chrome and debugger-free lifecycle checks.                             |
+| 2. Vault and accounts     | Implemented and validated                     | Recovery, encryption, accounts, backup, lock/restart/update behavior, interrupted writes.                                        |
+| 3. Networks and receiving | Implemented and validated                     | Sepolia and Base Sepolia balances/QR in Chrome; custom RPC checks.                                                               |
+| 4. Native transfers       | Implemented; acceptance incomplete            | Local UI/chain sends, replacement and failure tests pass. Funded public-testnet transfer still required.                         |
+| 5. Dapp connections       | Implemented and validated for declared subset | Local connect/sign/transaction flows, external EIP-6963 reference demo; unsupported methods documented.                          |
+| 6. Tokens and protection  | Implemented and validated                     | Token import/send, edited allowances confirmed on-chain, execution checks, local phishing list and limitations.                  |
+| 7. Testnet alpha          | Packaged candidate; conditional acceptance    | Reproducible archives, production checks, documentation and measured budgets. Milestone 4 public-testnet criterion remains open. |
 
 ## Decisions and limits
 
@@ -84,3 +84,11 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Final fixed-artifact Chrome 156.0.8078.80 run: all nine browser tests pass, including live Sepolia/Base balances, EIP-6963 reference-demo connection, and local dapp allowance editing. Chromium 156.0.8078.4: seven pass, two external-service tests intentionally skipped. Chrome popup startup across nine fresh profiles measured 193–300 ms (median 282 ms), with the worker already loaded.
 - Clean-checkout comparison found identical file contents but different source file modes in ZIP metadata. Packaging now normalizes file permissions as well as timestamps and ordering; clean rebuild comparison is being repeated.
+
+### Final checkpoint
+
+- Clean source rebuild produces byte-identical Chrome and Firefox archives after permission normalization. Final code and packaging commits: `70613a0` and `70c06ea`.
+- Final validation: 24 unit, nine chain, nine Chrome, seven Chromium, and two package checks pass; two optional network tests skipped only in the Chromium run. Debugger-free Chrome lifecycle checks pass. Full results, exact versions, size/timing/idle observations, archive hashes, and limits are in `VERIFICATION.md`.
+- Documentation now covers installation, updates, recovery, supported methods/chains, privacy, simulation and phishing limitations, history coverage, and test commands. ROADMAP checkboxes reflect implemented work; funded public-testnet acceptance is explicitly unchecked.
+- Work is committed locally in small milestones and follow-up fixes. No push, deployment, store submission, or real-money operation was performed.
+- **Next acceptance action:** use a funded disposable Sepolia or Base Sepolia wallet to complete and record a public-testnet native transfer in Chrome, including restart tracking. Do not use existing real-asset keys. This is the outstanding criterion before calling all seven milestones complete.

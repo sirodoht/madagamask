@@ -1,112 +1,91 @@
 # Madagamask
 
-Madagamask is a planned open-source wallet extension for Chrome and Firefox, focused on Ethereum and EVM-compatible networks. Its goal is to make everyday wallet tasks simple, with a small, understandable codebase and no advertising or integrated trading products.
+A small, MIT-licensed Ethereum wallet extension with a vanilla TypeScript interface. The testnet alpha includes encrypted recovery/account management, native and ERC20 transfers, site permissions, reviewed signatures, and local phishing protection.
 
-This document describes the intended product and architecture. Implementation has not started.
+**Use disposable test wallets only. This alpha is unaudited. Never import keys used for real assets.** Signing is restricted to Sepolia (11155111), Base Sepolia (84532), and local chains (31337 and 1337). Ethereum mainnet is view-only. A custom RPC claiming a permitted chain ID is still trusted infrastructure; chain IDs do not prove a network is safe.
 
-See the [roadmap](ROADMAP.md) for implementation milestones and completion criteria, and the [design guide](DESIGN.md) for visual and interface implementation rules.
+See [PROGRESS.md](PROGRESS.md) for implementation status, [VERIFICATION.md](VERIFICATION.md) for measured evidence and gaps, [ROADMAP.md](ROADMAP.md) for acceptance criteria, [SECURITY.md](SECURITY.md) for trust boundaries, and [DESIGN.md](DESIGN.md) for interface rules. Hardware wallets and public release are later milestones.
 
-## Product scope
+## Build and install
 
-Madagamask will support:
+Use [mise](https://mise.jdx.dev/) for the pinned Node 26.13.0 and Foundry 1.7.1 toolchains. Node supplies npm 11.20.0. Foundry is needed for local-chain tests, not to build the extension.
 
-- Wallet creation and import, recovery phrase backup and recovery.
-- Password protection, encrypted key storage, lock/unlock, and auto-lock.
-- Multiple accounts, account names, and account switching.
-- Ethereum and other EVM networks, including custom networks and RPC endpoints.
-- Native assets and fungible tokens, balances, and token import and management.
-- Sending and receiving assets, with addresses and receive QR codes.
-- Transaction history, pending transactions, fees, and clear failure states.
-- Dapp connections, site permissions, and easy disconnection.
-- Transaction and message signing with clear confirmations.
-- Hardware-wallet support for EVM accounts.
-- Phishing protection, approval warnings, and transaction simulation where available.
+```sh
+mise install
+mise exec -- npm ci --ignore-scripts
+mise exec -- npm run check
+mise exec -- npm run package
+```
 
-These define the intended scope, rather than a promise that every feature will ship in the first release. Reliable core wallet behavior takes priority over expanding the feature set.
+Chrome: open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `dist/chrome`. Pin Madagamask to the toolbar. The ZIP in `artifacts` contains the same files; extract it before using Load unpacked. Keep the extension directory in the same location when updating, click Reload in Chrome's extension manager, and unlock again. Back up disposable recovery material before updates. Removing the extension deletes its local data.
 
-Browser targets are the latest stable desktop Chrome and Firefox releases. Current development and browser testing focus on Chrome. Build and package for Firefox as well; Firefox runtime and UI testing are deferred. Record the exact browser versions used for validation and identify Firefox packages as untested until that work resumes.
+Firefox: `artifacts/madagamask-0.1.0-firefox-untested.zip` is an unsigned, packaging-checked development artifact. Its runtime and interface are **untested**, and it is not a normal signed Firefox installation package. Developers can attempt temporary loading through `about:debugging` using `dist/firefox/manifest.json`; do not rely on it for funds or persistent storage.
 
-## Everyday interface
+Builds include local scripts, licenses, and a compressed phishing snapshot. No executable code is fetched remotely. ZIP files have sorted entries and fixed timestamps; checksums are written to `artifacts/SHA256SUMS`.
 
-The home screen should make the essentials easy to find:
+## Use a disposable wallet
 
-- Account and network selectors at the top.
-- Balance, address, Send, and Receive.
-- Tokens and Activity as the primary views.
-- A compact indicator for the current site's connection.
-- Settings accessible through one menu.
+Create a wallet, set a password of at least 12 characters, and write down the recovery phrase offline. Confirm the phrase before signing or sending. Settings lets you reauthenticate to reveal the phrase, add derived accounts, rename accounts, import/export a private-key account, change the password, and choose a 1–30 minute auto-lock interval. Lock is always available in the header.
 
-Confirmations should identify the requesting site, account, and network. Transactions should show estimated network fees and expected asset changes when available. Message signatures should be clearly distinguished from transactions. Token approvals should explain the spending permission being granted, including unlimited allowances.
+Recovery accepts checksum-valid English BIP39 phrases and derives `m/44'/60'/0'/0/index`. BIP39 passphrases and alternate paths are unsupported. Restore additional derived accounts by adding them again in order. Imported private-key accounts need separate backups; the recovery phrase does not restore them. Password recovery is impossible without recovery material. Reset requires the current password and the literal text `DELETE`.
 
-When a transaction's effects cannot be determined, the interface should say so. Simulations and warnings should never imply certainty they cannot provide.
+Select a network and refresh the balance. Receive shows the full address and a QR payload containing the selected chain ID. Send shows the sender, recipient, amount, maximum network fee, and total before approval. Reviews expire after two minutes. Tokens must be imported by contract address on each network; names and symbols are untrusted text. Token quantities use exact decimals.
 
-## Deliberate boundaries
+Activity covers transactions initiated through this wallet, including dapp sends. It does not discover incoming transfers or an imported account's earlier history. A submitted transaction is not yet confirmed. If submission is uncertain, refresh its known hash before sending again. Speed-up and cancel use the same nonce with higher fees and are not guaranteed to win. Recent receipts are rechecked on refresh; there is no finality guarantee or deep-reorganization indexer. Reset removes the vault and site grants; public network, token, and activity records remain in this installation.
 
-Madagamask will not include ads, promotional cards, rewards, referral programs, subscriptions, or product upsells. Integrated swaps, bridging, fiat buy/sell flows, perpetual futures, market discovery, DeFi portfolio dashboards, and NFT galleries are outside its scope. Non-EVM networks are also outside its scope.
+## Dapp support
 
-Users can access swaps, bridges, NFT applications, and other services through external dapps using the wallet's EVM connection and signing flows. Supporting contract interactions does not require building each application's interface into the wallet.
+The wallet exposes EIP-1193 `request`, `on`, and `removeListener`, EIP-6963 discovery, and `window.ethereum` when another provider has not already claimed it. It emits account/network changes. Reload a dapp after reloading the extension. Only top-level HTTPS pages and loopback HTTP pages can connect; iframe wallet access is disabled.
+
+| Methods                                                                                                                                                                                                 | Behavior                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `eth_chainId`, `net_version`                                                                                                                                                                            | Selected network, without account permission                               |
+| `eth_accounts`                                                                                                                                                                                          | Selected account only if connected and unlocked; otherwise an empty array  |
+| `eth_requestAccounts`                                                                                                                                                                                   | Explicit per-origin connection approval                                    |
+| `wallet_getPermissions`, `wallet_revokePermissions`                                                                                                                                                     | Inspect/revoke this site's account connection                              |
+| `personal_sign`                                                                                                                                                                                         | Hex message then selected address; explicit review                         |
+| `eth_signTypedData_v4`                                                                                                                                                                                  | Address then typed-data object/JSON; domain chain must match when present  |
+| `eth_sendTransaction`                                                                                                                                                                                   | Review and submit `from`, `to`, optional `value`, `data`, `chainId`        |
+| `wallet_switchEthereumChain`, `wallet_addEthereumChain`                                                                                                                                                 | Explicit approval; one RPC and 18-decimal native currency for added chains |
+| `eth_blockNumber`, `eth_getBalance`, `eth_getTransactionCount`, `eth_getCode`, `eth_call`, `eth_estimateGas`, `eth_getTransactionReceipt`, `eth_getTransactionByHash`, `eth_gasPrice`, `eth_feeHistory` | Forwarded to the selected RPC only for connected sites                     |
+
+Unsupported methods fail explicitly. This is not MetaMask API parity: contract creation, caller-supplied nonce/gas/fee fields, `eth_sign`, legacy typed signing, batch calls, wallet asset watching, WalletConnect, and proprietary APIs are unsupported. Many production dapps will need broader compatibility before they work. Connections can be removed in Settings; connection alone never authorizes signing.
+
+Approvals show the browser-verified origin, account, network, exact message or typed data, and transaction details. ERC20 transfer/approval/transferFrom calls are decoded; unlimited allowances are flagged and standard approval amounts can be edited before a fresh review. Other calls show raw data and explicit uncertainty.
+
+## Simulation, privacy, and permissions
+
+Simulation is an `eth_call` execution check against current RPC state. It cannot predict all asset changes, MEV, later state, malicious RPC responses, or off-chain signature use. A successful call is not a safety verdict; failed/unavailable checks remain visibly uncertain. No external asset-delta simulation provider is integrated.
+
+The `storage` permission stores an encrypted vault plus public network/token/activity/permission records. HTTPS host access enables custom RPCs and provider injection; loopback HTTP enables local test chains. The isolated bridge cannot access decrypted keys. There are no telemetry, advertising, pricing, or portfolio services.
+
+Built-in RPC requests go to Thirdweb for Sepolia, Base for Base Sepolia, and reth.rs for mainnet. Custom networks use their configured endpoint. These providers receive IP addresses, queried accounts, and request contents, including transaction execution checks. Native/token balances refresh on demand. Pending activity is checked at most once per 30 seconds, up to 20 recent entries per pass with a 20-second soft budget and 10-second per-request timeouts. Visible extension pages poll public wallet state every three seconds. Chrome writes only a heartbeat timestamp to session storage every two seconds; it does not persist an unlocked session.
+
+Phishing checks use a bundled [PhishDestroy](https://github.com/phishdestroy/destroylist) domain list locally. Settings can fetch a replacement list from GitHub; visited domains are not sent. A list older than 24 hours is labeled stale, and known entries still block. Failed updates retain the old list. Missing data is explicitly unavailable. This feed can miss threats and produce false positives: the current snapshot blocks `metamask.github.io`, including its test dapp. There is no bypass or automatic safety guarantee.
+
+## Validation and development
+
+```sh
+mise exec -- npm run test:chain
+mise exec -- npx playwright install chromium
+mise exec -- npm run test:browser
+MADAGAMASK_BROWSER=chrome mise exec -- npm run test:browser
+mise exec -- npm run test:lifecycle
+mise exec -- npm run dev:dapp
+```
+
+The local dapp runs at `http://127.0.0.1:4173`. Tests start isolated Anvil chains and use only disposable, publicly known test keys. `MADAGAMASK_PUBLIC_RPC=1` enables live Sepolia/Base balance checks; `MADAGAMASK_EXTERNAL_DAPP=1` enables the external reference-demo test. Set `MADAGAMASK_CHROME_PATH` to a browser executable to validate that exact build. The lifecycle harness uses raw browser-level CDP without attaching a debugger to the worker; Playwright worker attachment would invalidate an idle-lifetime claim. It creates and deletes its own profile and extension copy.
+
+`npm run build:dev` includes source maps; production builds omit them. CI runs type/lint/unit/package checks, local-chain tests, Chromium browser tests, and packaging. Public services and installed stable Chrome are validated separately from CI. `tests/contracts` contains the original token fixture source; tests use its committed ABI/bytecode.
 
 ## Technology stack
 
-| Area                   | Choice                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------- |
-| Language               | Latest stable TypeScript with strict type checking                            |
-| Interface              | Vanilla HTML, CSS, and browser DOM APIs                                       |
-| Ethereum operations    | Latest stable viem                                                            |
-| Development runtime    | Latest Node.js LTS release                                                    |
-| Package manager        | npm, with a committed `package-lock.json`                                     |
-| Bundler                | Latest stable esbuild, driven by a small explicit build script                |
-| Type checking          | TypeScript's `tsc --noEmit`, separately from bundling                         |
-| Core unit tests        | Node.js's built-in test runner                                                |
-| Formatting and linting | Biome                                                                         |
-| Browser automation     | Playwright for Chromium extension tests, with latest stable Chrome validation |
-| Browser integration    | Direct extension APIs and maintained Chrome/Firefox manifests                 |
+TypeScript 7.0.2, viem 2.57.13, esbuild 0.28.2, Biome 2.6.4, and Playwright 1.64.1 are pinned in the npm lockfile. There are no UI libraries. Additional runtime dependencies are `@scure/bip39` 1.6.0 for explicit mnemonic generation/checksums and `qr` 0.7.2 for receive QR codes. Full runtime dependency notices accompany both packages; the phishing data has a separate MIT notice. Tooling uses Node APIs; extension runtime code uses browser APIs.
 
-The stack above is agreed. At initial setup, resolve the latest releases under this policy and record exact version pins and the npm lockfile. Use the npm version bundled with the selected Node.js release and record it. Review later upgrades explicitly so builds remain reproducible. Development-only type definitions will cover the browser and Node APIs we use. Keep Biome configuration small and shared across the repository.
+Core responsibilities are separated into vault/accounts, networks/RPC, transactions, token handling, phishing checks, and site permissions. Browser code authorizes senders and owns lifecycle integration; the interface renders public state and dedicated backup flows. Web Crypto provides AES-GCM/PBKDF2; viem and its noble/scure dependencies provide Ethereum signing and derivation. These choices still require independent security review.
 
-Playwright provides Chromium extension automation using a persistent context. Validate the installed wallet on latest stable Chrome against the exact release artifact as well. For Firefox, current checks cover building and package contents; runtime testing and its harness are deferred. See [Playwright's extension documentation](https://playwright.dev/docs/chrome-extensions).
+## Product boundaries
 
-Node.js and esbuild are development tools; the installed extension runs ordinary JavaScript in Chrome and Firefox. Keep Node-specific APIs confined to tooling and tests. Browser manifests and build configuration will be maintained directly.
+Madagamask focuses on accounts, balances, transfers, recovery, and reviewed dapp access. It excludes advertising, rewards, subscriptions, integrated trading/bridging, fiat ramps, portfolio discovery, NFT galleries, and non-EVM networks. External dapps remain the route to other applications. Hardware wallets, broader compatibility, and a reviewed public release are future work.
 
-Viem will provide Ethereum RPC, account derivation, transaction encoding, and signing utilities. It is the initial direct runtime dependency and brings its own transitive dependencies, which must also be reviewed. The dependency policy is zero UI dependencies and a minimal, explicitly justified dependency set elsewhere.
-
-## Architecture
-
-Build a new implementation around a small set of responsibilities:
-
-- **Vault:** encrypted secret storage, unlocking, locking, and recovery.
-- **Accounts:** account derivation, import, selection, and hardware signers.
-- **Networks and RPC:** network configuration and communication with EVM nodes.
-- **Transactions and signing:** request validation, fee estimation, signing, submission, and status tracking.
-- **Site permissions:** connection authorization, exposed accounts, and request approvals.
-- **Interface:** onboarding, balances, activity, settings, and confirmations.
-
-The security model should shape these boundaries from the beginning. Websites must not access secrets, and requests from websites must be validated and authorized before reaching signing operations. Design locking and background lifecycle behavior for both browser targets, and verify it in Chrome during the current phase. Firefox runtime behavior remains unverified until its testing resumes.
-
-For Chrome, use a service-worker heartbeat: write a timestamp to `chrome.storage.session` immediately on startup and every 2,000 milliseconds. This follows MetaMask's keepalive approach and is intended to prevent routine idle suspension so an unlocked session can remain in worker memory. The heartbeat stores only a timestamp. Manual lock and auto-lock still clear unlocked secrets. A real worker termination or browser restart loses the in-memory session and requires unlocking again; the heartbeat does not guarantee uninterrupted execution. Verify these behaviors in the foundation prototype.
-
-Use viem's established account and signing utilities for Ethereum operations. Prefer browser-native cryptographic operations where appropriate for vault encryption; the vault format, password derivation parameters, and secret lifecycle require their own design and review. Viem does not provide our encrypted vault or permission system. Any proposed third-party code requires explicit consideration of its provenance, license, and transitive dependencies. A smaller codebase can be easier to inspect, but size alone is not evidence of security.
-
-Every dependency, background service, permission, and external request should have a clear purpose. Avoid speculative frameworks and features. Test recovery, signing, permissions, transaction handling, and browser lifecycle behavior as core requirements.
-
-## Open source
-
-Madagamask is licensed under the [MIT License](LICENSE), permitting use, modification, redistribution, and commercial use subject to its notice requirements.
-
-The implementation will be original, with appropriately licensed dependencies and assets. It will not incorporate restricted MetaMask code or assets. Required dependency notices and attributions will be preserved.
-
-## Comparison with MetaMask
-
-MetaMask serves a broad range of wallet and financial-product use cases. Madagamask's intended distinction is a narrower scope and a codebase built specifically for that scope.
-
-| Area                  | Madagamask's intended approach                                          | MetaMask comparison                                                   |
-| --------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Product focus         | Everyday EVM wallet tasks and dapp access                               | A broader wallet with integrated products and services                |
-| Trading and discovery | Use external dapps                                                      | Includes integrated trading and discovery experiences                 |
-| Interface             | Accounts, networks, assets, activity, and clear confirmations           | Accommodates a wider feature set                                      |
-| Architecture          | New implementation with few dependencies and explicit responsibilities  | Mature architecture supporting a much larger product scope            |
-| Licensing             | OSI-approved license, with no commercial-use or user-count restrictions | Repository license imposes its defined Non-Commercial Use restriction |
-
-MetaMask's repository license permits derivatives under a defined Non-Commercial Use restriction, which includes a provision for programs with no more than 10,000 monthly active users. It requires derivatives to retain that restriction. Those terms differ from the unrestricted commercial use required by the Open Source Definition. See the [MetaMask license](https://raw.githubusercontent.com/MetaMask/metamask-extension/main/LICENSE) and the [Open Source Definition](https://opensource.org/osd).
-
-Madagamask does not aim for complete MetaMask feature parity. It aims to provide the core wallet capabilities needed for everyday EVM use, with simplicity maintained as the product grows.
+Original implementation and assets are licensed under [MIT](LICENSE). Restricted MetaMask code and artwork are not incorporated.

@@ -2,109 +2,115 @@
 
 Build a small, open-source Ethereum and EVM wallet for Chrome and Firefox. The [README](README.md) defines the product scope; this roadmap defines the order of implementation and the evidence required to complete each milestone.
 
-All implementation milestones are planned. The agreed stack is TypeScript, vanilla HTML/CSS/DOM, viem, Node.js, npm, and esbuild, with Biome for formatting and linting, Node's built-in runner for core unit tests, and Playwright for browser automation. The project uses MIT and targets the latest stable desktop Chrome and Firefox. See the [technology stack](README.md#technology-stack) for the recorded decisions and the [design guide](DESIGN.md) for interface requirements. Milestones are ordered by dependency, without speculative delivery dates.
+Milestones 1–7 are implemented as a testnet alpha candidate. The funded public-testnet transfer required by milestone 4 is still unverified, so the alpha is not fully signed off. See [PROGRESS.md](PROGRESS.md) and [VERIFICATION.md](VERIFICATION.md) for evidence and limits. The agreed stack is TypeScript, vanilla HTML/CSS/DOM, viem, Node.js, npm, and esbuild, with Biome for formatting and linting, Node's built-in runner for core unit tests, and Playwright for browser automation. The project uses MIT and targets the latest stable desktop Chrome and Firefox. See the [technology stack](README.md#technology-stack) for the recorded decisions and the [design guide](DESIGN.md) for interface requirements. Milestones are ordered by dependency, without speculative delivery dates.
 
 Current browser testing focuses on Chrome/Chromium. Build and package Firefox alongside Chrome, checking its manifest and packaged files. Firefox runtime and UI tests, their harness, and Firefox store submission are deferred. The completion criteria below use Chrome for wallet behavior; Firefox packages remain labeled untested until browser testing resumes.
 
 ## 1. Foundation and browser prototype
 
-- [ ] Configure the agreed stack using the latest Node.js LTS release, record Node.js and bundled npm versions, and commit the npm lockfile.
-- [ ] Review and pin the latest stable TypeScript, viem, and esbuild releases and their dependency trees; keep the UI dependency-free and justify each additional runtime or development dependency.
-- [ ] Establish source directories for the wallet core, browser integration, and interface, with explicit dependencies between them.
-- [ ] Create development and production builds for Chrome and Firefox.
-- [ ] Load a minimal popup, background entry point, and content script in Chrome.
-- [ ] Define the threat model and boundaries between websites, content scripts, extension pages, and privileged wallet operations.
-- [ ] Define typed messages with runtime validation and sender authorization.
-- [ ] Prototype the chosen Chrome service-worker heartbeat: write a timestamp to `chrome.storage.session` on startup and every 2,000 milliseconds. Verify session continuity after popup closure and routine idle periods, and loss of the unlocked session after forced worker termination or browser restart.
-- [ ] Configure Biome formatting/linting, TypeScript checking, core unit tests, browser smoke tests, and CI.
-- [ ] Set up Playwright for Chromium extension tests and verify installed-extension flows on latest stable Chrome.
-- [ ] Check both browser packages for valid manifests, required entry points, and referenced assets.
-- [ ] Review initial dependency licenses and preserve required notices.
+- [x] Configure the agreed stack using the latest Node.js LTS release, record Node.js and bundled npm versions, and commit the npm lockfile.
+- [x] Review and pin the latest stable TypeScript, viem, and esbuild releases and their dependency trees; keep the UI dependency-free and justify each additional runtime or development dependency.
+- [x] Establish source directories for the wallet core, browser integration, and interface, with explicit dependencies between them.
+- [x] Create development and production builds for Chrome and Firefox.
+- [x] Load a minimal popup, background entry point, and content script in Chrome.
+- [x] Define the threat model and boundaries between websites, content scripts, extension pages, and privileged wallet operations.
+- [x] Define typed messages with runtime validation and sender authorization.
+- [x] Prototype the chosen Chrome service-worker heartbeat: write a timestamp to `chrome.storage.session` on startup and every 2,000 milliseconds. Verify session continuity after popup closure and routine idle periods, and loss of the unlocked session after forced worker termination or browser restart.
+- [x] Configure Biome formatting/linting, TypeScript checking, core unit tests, browser smoke tests, and CI.
+- [x] Set up Playwright for Chromium extension tests and verify installed-extension flows on latest stable Chrome.
+- [x] Check both browser packages for valid manifests, required entry points, and referenced assets.
+- [x] Review initial dependency licenses and preserve required notices.
 
 **Done when:** a fresh checkout produces both browser packages and loads in Chrome, messages cross the intended boundaries, unauthorized messages are rejected, and Chrome background lifecycle behavior has been demonstrated and documented.
 
 ## 2. Vault, recovery, and accounts
 
-- [ ] Create a wallet with a recovery phrase using the reviewed cryptographic implementation selected under the dependency policy.
-- [ ] Import and validate recovery phrases; explicitly define supported derivation paths and passphrase behavior.
-- [ ] Design a versioned encrypted vault with authenticated encryption, a reviewed password derivation scheme, and safe persistence.
-- [ ] Implement password creation/change, unlock, manual lock, and auto-lock.
-- [ ] Keep unlocked secrets in worker memory, clear them on manual lock and auto-lock, and require unlocking again after worker termination or browser restart. Verify that the heartbeat does not interfere with locking.
-- [ ] Add recovery phrase backup and confirmation, with reauthentication before revealing secrets.
-- [ ] Derive multiple accounts, name them, switch between them, and copy addresses.
-- [ ] Support private-key account import and explain that these accounts are not recovered from the wallet's recovery phrase.
-- [ ] Define explicit backup/export and reset behavior, including checks before destructive actions.
-- [ ] Test known derivation vectors, incorrect passwords, tampered vaults, interrupted writes, recovery, and locking.
+- [x] Create a wallet with a recovery phrase using the reviewed cryptographic implementation selected under the dependency policy.
+- [x] Import and validate recovery phrases; explicitly define supported derivation paths and passphrase behavior.
+- [x] Design a versioned encrypted vault with authenticated encryption, a reviewed password derivation scheme, and safe persistence.
+- [x] Implement password creation/change, unlock, manual lock, and auto-lock.
+- [x] Keep unlocked secrets in worker memory, clear them on manual lock and auto-lock, and require unlocking again after worker termination or browser restart. Verify that the heartbeat does not interfere with locking.
+- [x] Add recovery phrase backup and confirmation, with reauthentication before revealing secrets.
+- [x] Derive multiple accounts, name them, switch between them, and copy addresses.
+- [x] Support private-key account import and explain that these accounts are not recovered from the wallet's recovery phrase.
+- [x] Define explicit backup/export and reset behavior, including checks before destructive actions.
+- [x] Test known derivation vectors, incorrect passwords, tampered vaults, interrupted writes, recovery, and locking.
 
 **Done when:** a wallet can be created, backed up, locked, reopened, and restored with identical addresses in Chrome. Secrets are absent from logs, website messages, and unencrypted persistent storage.
 
 ## 3. Networks, balances, and receiving
 
-- [ ] Add Ethereum and a small initial network list, including a test network.
-- [ ] Add custom networks and RPC endpoints with chain ID validation.
-- [ ] Handle unavailable endpoints, timeouts, stale responses, and network changes.
-- [ ] Display the selected account's native balance and clearly distinguish loading, stale data, and errors.
-- [ ] Implement the core home layout: account/network selectors, balance, Send, Receive, Tokens, Activity, and Settings.
-- [ ] Show the receive address and QR code with the selected network identified.
-- [ ] Keep polling bounded and document which external services receive requests.
+- [x] Add Ethereum and a small initial network list, including a test network.
+- [x] Add custom networks and RPC endpoints with chain ID validation.
+- [x] Handle unavailable endpoints, timeouts, stale responses, and network changes.
+- [x] Display the selected account's native balance and clearly distinguish loading, stale data, and errors.
+- [x] Implement the core home layout: account/network selectors, balance, Send, Receive, Tokens, Activity, and Settings.
+- [x] Show the receive address and QR code with the selected network identified.
+- [x] Keep polling bounded and document which external services receive requests.
 
 **Done when:** balances and receive details are correct on two EVM networks in Chrome, custom RPCs work, and late responses cannot overwrite data for a different account or network.
 
 ## 4. Native transfers and transaction activity
 
-- [ ] Validate recipients and amounts without floating-point arithmetic for asset quantities.
-- [ ] Estimate gas and support the fee models needed by the initial network set.
-- [ ] Show the sender, network, recipient, amount, estimated fee, and total before approval.
-- [ ] Build and sign transactions inside the privileged wallet boundary.
-- [ ] Handle nonce allocation, concurrent sends, duplicate clicks, and ambiguous RPC submission failures.
-- [ ] Track submitted transactions through pending, confirmed, reverted, dropped, and replaced states where detectable.
-- [ ] Persist local activity and resume tracking after popup closure or browser restart.
-- [ ] Implement speed-up and cancel requests as replacement transactions, explaining that success is not guaranteed.
-- [ ] Test insufficient funds, rejected approvals, RPC failures, and chain reorganizations.
+- [x] Validate recipients and amounts without floating-point arithmetic for asset quantities.
+- [x] Estimate gas and support the fee models needed by the initial network set.
+- [x] Show the sender, network, recipient, amount, estimated fee, and total before approval.
+- [x] Build and sign transactions inside the privileged wallet boundary.
+- [x] Handle nonce allocation, concurrent sends, duplicate clicks, and ambiguous RPC submission failures.
+- [x] Track submitted transactions through pending, confirmed, reverted, dropped, and replaced states where detectable.
+- [x] Persist local activity and resume tracking after popup closure or browser restart.
+- [x] Implement speed-up and cancel requests as replacement transactions, explaining that success is not guaranteed.
+- [x] Test insufficient funds, rejected approvals, RPC failures, and chain reorganizations.
 
 **Done when:** native transfers succeed on a local development chain and a public test network in Chrome, failures are understandable, and restarting does not lose submitted-transaction tracking or trigger duplicate sends.
 
+**Acceptance still open:**
+
+- [ ] Demonstrate a funded native transfer on a public testnet through Chrome and record its receipt and restart tracking.
+
 ## 5. Dapp connections and signing
 
-- [ ] Implement the standard Ethereum provider interface and wallet discovery, with an explicit supported-method list.
-- [ ] Build a small local test dapp for connection, account/network changes, transaction requests, and signatures.
-- [ ] Bind requests to browser-verified site identity and define iframe behavior.
-- [ ] Ask permission before exposing accounts; support viewing and revoking connections.
-- [ ] Support network switch/add requests with validation and user approval.
-- [ ] Support dapp transaction requests, personal message signing, and structured typed-data signing.
-- [ ] Show the requesting site, account, network where relevant, and exact request details before approval.
-- [ ] Bind approval to the reviewed payload; handle account/network changes and reject stale requests.
-- [ ] Bound request queues and handle duplicate requests, tab closure, locking, and popup dismissal.
-- [ ] Reject unsupported signing methods explicitly and test malformed or hostile requests.
+- [x] Implement the standard Ethereum provider interface and wallet discovery, with an explicit supported-method list.
+- [x] Build a small local test dapp for connection, account/network changes, transaction requests, and signatures.
+- [x] Bind requests to browser-verified site identity and define iframe behavior.
+- [x] Ask permission before exposing accounts; support viewing and revoking connections.
+- [x] Support network switch/add requests with validation and user approval.
+- [x] Support dapp transaction requests, personal message signing, and structured typed-data signing.
+- [x] Show the requesting site, account, network where relevant, and exact request details before approval.
+- [x] Bind approval to the reviewed payload; handle account/network changes and reject stale requests.
+- [x] Bound request queues and handle duplicate requests, tab closure, locking, and popup dismissal.
+- [x] Reject unsupported signing methods explicitly and test malformed or hostile requests.
 
 **Done when:** the local test dapp and selected external dapps can connect and request supported operations in Chrome. Unapproved sites cannot access accounts or sign, and requests cannot inherit another site's permission or approval.
 
 ## 6. Tokens and clearer confirmations
 
-- [ ] Import fungible tokens by contract address and validate metadata responses.
-- [ ] Display token balances and support token transfers with correct decimal handling.
-- [ ] Treat token names, symbols, images, and other remote metadata as untrusted input.
-- [ ] Decode common contract interactions, including token spending approvals.
-- [ ] Explain spenders, allowance amounts, and unlimited allowances; offer allowance editing where supported.
-- [ ] Integrate transaction simulation with documented coverage, privacy implications, and failure behavior.
-- [ ] Show expected asset changes when available, and explicit uncertainty when they are unavailable.
-- [ ] Add phishing protection with an update strategy and clear behavior when protection data is stale or unavailable.
-- [ ] Show raw transaction/signature details for inspection without making raw data the default explanation.
-- [ ] Define history coverage: locally initiated transactions first; decide separately how imported accounts' past and incoming activity will be discovered.
+- [x] Import fungible tokens by contract address and validate metadata responses.
+- [x] Display token balances and support token transfers with correct decimal handling.
+- [x] Treat token names, symbols, images, and other remote metadata as untrusted input.
+- [x] Decode common contract interactions, including token spending approvals.
+- [x] Explain spenders, allowance amounts, and unlimited allowances; offer allowance editing where supported.
+- [x] Integrate transaction simulation with documented coverage, privacy implications, and failure behavior.
+- [x] Show expected asset changes when available, and explicit uncertainty when they are unavailable.
+- [x] Add phishing protection with an update strategy and clear behavior when protection data is stale or unavailable.
+- [x] Show raw transaction/signature details for inspection without making raw data the default explanation.
+- [x] Define history coverage: locally initiated transactions first; decide separately how imported accounts' past and incoming activity will be discovered.
 
 **Done when:** native and token sends, external contract interactions, and approval warnings work in Chrome. Simulation failures never appear as successful safety checks, and history limitations are visible.
 
 ## 7. Testnet alpha
 
-- [ ] Package an installable alpha for both browsers with clear testnet-only guidance.
-- [ ] Run the complete create/import, recovery, lock, send, connect, and sign flows against the Chrome production build.
-- [ ] Test background termination, extension updates, interrupted writes, and storage migrations.
-- [ ] Verify website isolation, origin spoofing defenses, request mutation defenses, and secret handling.
-- [ ] Review permissions, dependencies, packaged code, and outbound requests.
-- [ ] Measure bundle size, startup time, idle resource use, and polling; establish budgets based on the measured baseline.
-- [ ] Document installation, supported methods/networks, recovery, and known limitations.
+- [x] Package an installable alpha for both browsers with clear testnet-only guidance.
+- [x] Run the complete create/import, recovery, lock, send, connect, and sign flows against the Chrome production build.
+- [x] Test background termination, extension updates, interrupted writes, and storage migrations.
+- [x] Verify website isolation, origin spoofing defenses, request mutation defenses, and secret handling.
+- [x] Review permissions, dependencies, packaged code, and outbound requests.
+- [x] Measure bundle size, startup time, idle resource use, and polling; establish budgets based on the measured baseline.
+- [x] Document installation, supported methods/networks, recovery, and known limitations.
 
 **Done when:** both alpha packages are reproducibly buildable and the core flows pass on latest stable Chrome. Firefox packaging checks pass and its runtime validation status is documented. Playwright's Chromium results are recorded separately from latest stable Chrome validation.
+
+**Alpha acceptance remains conditional on the public-testnet transfer above.** Chrome validation covers the fully served stable 156.0.8078.80 build; the 157 early rollout is not tested.
 
 ## 8. Hardware wallets and everyday polish
 
