@@ -40,9 +40,7 @@ test("production popup loads, connects, and opens the full view", async () => {
   await expect(
     popup.getByRole("heading", { name: "A little simpler. All yours." }),
   ).toBeVisible();
-  await expect(popup.getByRole("status")).toHaveText(
-    "Your preview is ready to explore.",
-  );
+  await expect(popup.getByRole("status")).toHaveText("");
   await expect(popup.getByRole("button", { name: "Try again" })).toBeHidden();
   await popup.screenshot({
     path: "artifacts/popup-chromium.png",
@@ -52,9 +50,7 @@ test("production popup loads, connects, and opens the full view", async () => {
   await popup.getByRole("button", { name: "Open in a tab" }).click();
   const tab = await opened;
   await expect(tab).toHaveURL(`chrome-extension://${extensionId}/popup.html`);
-  await expect(tab.getByRole("status")).toHaveText(
-    "Your preview is ready to explore.",
-  );
+  await expect(tab.getByRole("status")).toHaveText("");
 });
 
 test("malformed messages and role escalation fail closed", async () => {
@@ -104,4 +100,62 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
       popup.getByRole("button", { name: "Open in a tab" }),
     ).toBeFocused();
   }
+});
+
+test("create, back up, lock, and restore a wallet through the production UI", async () => {
+  await popup
+    .getByRole("button", { name: "Create wallet", exact: true })
+    .click();
+  await popup
+    .getByLabel("Password", { exact: true })
+    .fill("a-disposable-test-password");
+  await popup
+    .getByLabel("Confirm password", { exact: true })
+    .fill("a-disposable-test-password");
+  await popup.getByRole("button", { name: "Create test wallet" }).click();
+  await expect(
+    popup.getByRole("heading", { name: "Your wallet" }),
+  ).toBeVisible();
+  const address = await popup.locator(".address").textContent();
+  await popup.getByRole("button", { name: "Back up now" }).click();
+  await popup
+    .getByLabel("Password", { exact: true })
+    .fill("a-disposable-test-password");
+  await popup.getByRole("button", { name: "Reveal backup" }).click();
+  const phrase = await popup.locator(".secret").textContent();
+  expect(phrase?.split(" ")).toHaveLength(12);
+  await popup.getByLabel("Confirm your recovery phrase").fill(phrase ?? "");
+  await popup.getByRole("button", { name: "Confirm backup" }).click();
+  await expect(popup.getByRole("button", { name: "Back up now" })).toBeHidden();
+  const stored = JSON.stringify(
+    await popup.evaluate(() => chrome.storage.local.get(null)),
+  );
+  expect(stored).not.toContain(phrase);
+  expect(stored).not.toContain("a-disposable-test-password");
+  await popup.getByRole("button", { name: "Lock wallet" }).click();
+  await expect(
+    popup.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+  await popup
+    .getByLabel("Password", { exact: true })
+    .fill("a-disposable-test-password");
+  await popup.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(popup.locator(".address")).toHaveText(address ?? "");
+  await context.close();
+  const path = resolve("dist/chrome");
+  context = await chromium.launchPersistentContext(profile, {
+    channel: "chromium",
+    headless: true,
+    args: [`--disable-extensions-except=${path}`, `--load-extension=${path}`],
+  });
+  popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(
+    popup.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+  await popup
+    .getByLabel("Password", { exact: true })
+    .fill("a-disposable-test-password");
+  await popup.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(popup.locator(".address")).toHaveText(address ?? "");
 });

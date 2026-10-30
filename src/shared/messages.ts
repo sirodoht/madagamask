@@ -1,6 +1,12 @@
 import type { WalletStatus } from "../core/status.ts";
 
 export type Request =
+  | {
+      version: 1;
+      type: "app:command";
+      action: string;
+      params: Record<string, unknown>;
+    }
   | { version: 1; type: "app:get-status" }
   | { version: 1; type: "content:hello" };
 
@@ -20,6 +26,29 @@ export function parseRequest(value: unknown): Request | undefined {
     return undefined;
   }
   const keys = Object.keys(value);
+  const command = value as Record<string, unknown>;
+  if (command.version === 1 && command.type === "app:command") {
+    if (
+      keys.length !== 4 ||
+      typeof command.action !== "string" ||
+      command.action.length > 60 ||
+      !command.params ||
+      typeof command.params !== "object" ||
+      Array.isArray(command.params)
+    )
+      return undefined;
+    try {
+      if (JSON.stringify(value).length > 32768) return undefined;
+    } catch {
+      return undefined;
+    }
+    return {
+      version: 1,
+      type: "app:command",
+      action: command.action,
+      params: command.params as Record<string, unknown>,
+    };
+  }
   if (
     keys.length !== 2 ||
     !keys.includes("version") ||

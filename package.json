@@ -23,6 +23,7 @@
     "package": "npm run build && npm run check:packages && node scripts/package.ts"
   },
   "dependencies": {
+    "@scure/bip39": "1.6.0",
     "viem": "2.57.13"
   },
   "devDependencies": {

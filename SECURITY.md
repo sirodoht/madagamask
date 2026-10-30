@@ -25,3 +25,9 @@ Viem provides derivation, encoding, and signing, with its pinned noble/scure cry
 ## Out of scope for this alpha
 
 Compromised operating systems/browsers, malicious extension updates, hardware wallets, real-money use, and guaranteed detection of phishing or malicious contract behavior. RPC providers can observe addresses and requests, lie, fail, or censor. Simulations never prove safety.
+
+## Vault format v1
+
+AES-256-GCM uses a fresh random 96-bit IV for every write, a random 256-bit salt on creation/password change, and authenticated additional data `madagamask:vault:1`. PBKDF2-HMAC-SHA-256 uses exactly 600,000 iterations; unsupported parameters/formats fail closed. The non-extractable encryption key and decrypted payload exist only in worker memory. The design follows the [OWASP PBKDF2 guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html); this is a design choice for native Web Crypto, not an independent review.
+
+Recovery supports English BIP39 phrases with checksum validation and path `m/44'/60'/0'/0/index`. BIP39 passphrases and alternate paths are not supported. Imported private keys need separate backups. Passwords require 12–256 characters. Freshly generated wallets must confirm their phrase before signing. Backup reveal and reset require password reauthentication. Reset needs the literal confirmation DELETE.

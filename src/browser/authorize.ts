@@ -21,7 +21,7 @@ export function authorize(
     return false;
   if (sender.frameId !== undefined && sender.frameId !== 0) return false;
 
-  if (request.type === "app:get-status") {
+  if (request.type.startsWith("app:")) {
     return sender.url === popupUrl;
   }
 
