@@ -12,7 +12,11 @@ for (const browser of ["chrome", "firefox"]) {
     assert.equal(manifest.manifest_version, 3);
     assert.equal(manifest.version, pkg.version);
     assert.deepEqual(manifest.permissions, ["storage"]);
-    assert.equal(manifest.host_permissions, undefined);
+    assert.deepEqual(manifest.host_permissions, [
+      "https://*/*",
+      "http://localhost/*",
+      "http://127.0.0.1/*",
+    ]);
     assert.equal(manifest.web_accessible_resources, undefined);
     assert.equal(manifest.externally_connectable, undefined);
     const assets = [

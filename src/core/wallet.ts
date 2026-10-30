@@ -1,14 +1,20 @@
+import { Networks } from "./networks.ts";
 import { UserError } from "./validation.ts";
 import { type Storage, Vault } from "./vault.ts";
 
 export class Wallet {
   readonly vault: Vault;
+  readonly networks: Networks;
   private queue: Promise<unknown> = Promise.resolve();
   constructor(storage: Storage) {
     this.vault = new Vault(storage);
+    this.networks = new Networks(storage);
   }
   async view() {
-    return { vault: await this.vault.view() };
+    return {
+      vault: await this.vault.view(),
+      networks: await this.networks.view(),
+    };
   }
   run(action: string, params: Record<string, unknown>): Promise<unknown> {
     if (action === "lock") {
@@ -25,6 +31,18 @@ export class Wallet {
   ): Promise<unknown> {
     if (action !== "state") this.vault.touch();
     switch (action) {
+      case "balance": {
+        const view = await this.vault.view();
+        const account = view.accounts[view.selected];
+        if (!account) throw new UserError("Unlock the wallet first.");
+        return this.networks.balance(account.address);
+      }
+      case "selectNetwork":
+        await this.networks.select(p.id);
+        break;
+      case "addNetwork":
+        await this.networks.add(p);
+        break;
       case "state":
         break;
       case "create":

@@ -1,3 +1,4 @@
+import encodeQR from "qr";
 import type { Wallet } from "../core/wallet.ts";
 import { button, el, type Field, form } from "./dom.ts";
 
@@ -8,6 +9,7 @@ let state: View;
 let secretTimer: ReturnType<typeof setTimeout> | undefined;
 let showingSecret = false;
 let busy = false;
+let screenId = 0;
 
 async function rpc<T = View>(
   action: string,
@@ -47,6 +49,7 @@ async function attempt(action: () => Promise<void>) {
   }
 }
 function screen(title: string) {
+  screenId += 1;
   clearTimeout(secretTimer);
   showingSecret = false;
   app.replaceChildren(el("h1", title));
@@ -145,6 +148,29 @@ function backup(index?: number) {
 }
 function settings() {
   screen("Settings");
+  app.append(
+    button(
+      "Add or edit network",
+      () =>
+        fields(
+          "Custom network",
+          [
+            { key: "id", label: "Chain ID", type: "number" },
+            { key: "name", label: "Network name" },
+            { key: "symbol", label: "Currency symbol", value: "ETH" },
+            {
+              key: "rpc",
+              label: "RPC URL",
+              help: "This provider receives your address and requests. HTTPS required, except localhost. Existing chain IDs replace their endpoint.",
+            },
+          ],
+          "Verify and save network",
+          (values) =>
+            command("addNetwork", { ...values, id: Number(values.id) }),
+        ),
+      true,
+    ),
+  );
   app.append(button("Back up recovery phrase", () => backup()));
   if (state.vault.accounts[state.vault.selected]?.imported)
     app.append(
@@ -255,6 +281,45 @@ function settings() {
   );
   back();
 }
+function receive() {
+  const account = state.vault.accounts[state.vault.selected];
+  const network = state.networks.items.find(
+    (item) => item.id === state.networks.selected,
+  );
+  if (!account || !network) return;
+  screen("Receive test assets");
+  app.append(
+    el("p", `${network.name} · chain ${network.id}`),
+    el("p", account.address, "address"),
+  );
+  const grid = encodeQR(`ethereum:${account.address}@${network.id}`, "raw", {
+    border: 4,
+    scale: 1,
+  });
+  const canvas = el("canvas");
+  canvas.width = grid.length * 6;
+  canvas.height = grid.length * 6;
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute(
+    "aria-label",
+    `Receive QR code for ${account.address} on ${network.name}`,
+  );
+  canvas.style.maxWidth = "100%";
+  const context = canvas.getContext("2d");
+  if (context) {
+    grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        context.fillStyle = cell ? "#000" : "#fff";
+        context.fillRect(x * 6, y * 6, 6, 6);
+      });
+    });
+  }
+  app.append(
+    canvas,
+    el("p", "Only send test assets on the network shown above."),
+  );
+  back();
+}
 function home() {
   const vault = state.vault;
   if (vault.state === "not-created") {
@@ -276,6 +341,21 @@ function home() {
     );
   } else {
     screen("Your wallet");
+    const networkLabel = el("label", "Network", "stack field");
+    const networkSelect = el("select");
+    state.networks.items.forEach((network) => {
+      const option = el("option", network.name);
+      option.value = String(network.id);
+      option.selected = network.id === state.networks.selected;
+      networkSelect.append(option);
+    });
+    networkSelect.addEventListener("change", () => {
+      void attempt(() =>
+        command("selectNetwork", { id: Number(networkSelect.value) }),
+      );
+    });
+    networkLabel.append(networkSelect);
+    app.append(networkLabel);
     const label = el("label", "Account", "stack field");
     const select = el("select");
     vault.accounts.forEach((account, index) => {
@@ -293,6 +373,34 @@ function home() {
     app.append(label);
     const account = vault.accounts[vault.selected];
     if (account) {
+      const balance = el("p", "Balance not loaded", "balance");
+      app.append(balance);
+      const currentScreen = screenId;
+      const refresh = async () => {
+        balance.textContent = "Loading balance…";
+        try {
+          const value = await rpc<{
+            amount: string;
+            symbol: string;
+            address: string;
+            chainId: number;
+          }>("balance");
+          if (
+            currentScreen === screenId &&
+            value.address === account.address &&
+            value.chainId === state.networks.selected
+          )
+            balance.textContent = `${value.amount} ${value.symbol}`;
+        } catch {
+          if (currentScreen === screenId)
+            balance.textContent = "Balance unavailable. Refresh to try again.";
+        }
+      };
+      app.append(
+        button("Refresh balance", refresh, true),
+        button("Receive", () => receive(), true),
+      );
+
       app.append(
         el("p", account.address, "address"),
         button(

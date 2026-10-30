@@ -4,8 +4,13 @@
   "version": "0.1.0",
   "description": "An early prototype of a simple Ethereum wallet. Wallet creation is not available yet.",
   "permissions": ["storage"],
-  "background": { "service_worker": "background.js" },
-  "action": { "default_title": "Madagamask", "default_popup": "popup.html" },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Madagamask",
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
       "matches": ["http://localhost/*", "http://127.0.0.1/*"],
@@ -15,6 +20,11 @@
     }
   ],
   "content_security_policy": {
-    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-  }
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; connect-src https: http://localhost:* http://127.0.0.1:*"
+  },
+  "host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ]
 }
