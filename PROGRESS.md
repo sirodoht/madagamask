@@ -263,3 +263,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Added an overlapping-squares copy icon and subtle rounded border around the full address, with an accent hover state. Copy confirmation stays in place without changing the control's dimensions; the shared home/account-list header retains the complete address.
 - Lint/typecheck, both package checks, and two targeted Chrome browser flows pass, including exact address copying, stable confirmation layout, narrow-width fit, and shared header geometry. Inspected Chrome and Firefox address controls. Both distributions and archives rebuilt.
+
+### Filled three-dot button highlight — 2026-10-31
+
+- Replaced the three-dot hover/focus inset border with a filled green background, slightly darker than the account-row highlight so the whole button remains distinct within selected or hovered rows.
+- Lint and both package checks pass. Inspected the filled account-menu hover state in Firefox 159; both distributions and archives rebuilt.
