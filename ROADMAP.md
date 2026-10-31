@@ -145,6 +145,14 @@ Unsupported today and needed by real dapps. Old or deprecated methods, such as `
 - [ ] `wallet_watchAsset`.
 - [ ] WalletConnect.
 
+## RPC settings
+
+Public RPC providers remain the default; Madagamask operates no server and needs no user-run node.
+
+- [ ] Add a settings screen to view and choose each network's public RPC provider.
+- [ ] Show which provider is in use and what it receives: IP address, queried accounts, and request contents.
+- [ ] Cross-check providers on mainnet so one bad answer is noticed.
+
 ## Future features
 
 Both rely on outside services, which would see the user's transactions. Choose a provider and document its privacy and availability behavior first.
