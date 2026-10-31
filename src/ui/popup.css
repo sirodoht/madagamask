@@ -430,7 +430,7 @@ main h1 {
   border-radius: 50%;
   background: transparent;
   color: var(--color-muted);
-  font-size: 1.125rem;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 .balance-refresh:hover {
