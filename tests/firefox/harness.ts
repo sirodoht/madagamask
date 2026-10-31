@@ -8,6 +8,7 @@ import { download } from "geckodriver";
 import {
   Builder,
   By,
+  error,
   until,
   type WebDriver,
   type WebElement,
@@ -31,6 +32,23 @@ export const PASSWORD = "a-disposable-test-password";
 export const PHRASE =
   "test test test test test test test test test test test junk";
 export const ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+
+// The wallet re-renders whole screens, so a found element can be replaced
+// before Selenium uses it. Locating it again is the correct recovery.
+async function retryStale<T>(action: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await action();
+    } catch (failure) {
+      if (
+        attempt >= 20 ||
+        !(failure instanceof error.StaleElementReferenceError)
+      )
+        throw failure;
+      await delay(100);
+    }
+  }
+}
 
 function xpathText(value: string) {
   return `"${value}"`;
@@ -61,19 +79,23 @@ export class Wallet {
       ),
     );
   }
-  async click(name: string) {
-    await (await this.button(name)).click();
+  click(name: string) {
+    return retryStale(async () => (await this.button(name)).click());
   }
   field(label: string) {
     return this.visible(By.css(`[aria-label="${label}"]`));
   }
-  async fill(label: string, value: string) {
-    const field = await this.field(label);
-    await field.clear();
-    await field.sendKeys(value);
+  fill(label: string, value: string) {
+    return retryStale(async () => {
+      const field = await this.field(label);
+      await field.clear();
+      await field.sendKeys(value);
+    });
   }
-  async text(selector: string) {
-    return (await this.visible(By.css(selector))).getText();
+  text(selector: string) {
+    return retryStale(async () =>
+      (await this.visible(By.css(selector))).getText(),
+    );
   }
   async createWallet() {
     await this.openPopup();
@@ -103,11 +125,15 @@ export class Wallet {
     await this.click("Verify and save network");
     await this.visible(By.xpath('//h1[normalize-space()="Settings"]'));
     await this.click("Back");
-    const network = await this.field("Network");
-    await network.findElement(By.css('option[value="31337"]')).click();
+    await retryStale(async () =>
+      (await this.field("Network"))
+        .findElement(By.css('option[value="31337"]'))
+        .click(),
+    );
     await this.driver.wait(
-      async () => (await this.text(".balance")) !== "",
+      async () => (await this.text(".balance-value")) === "10000",
       TIMEOUT,
+      "Local chain balance did not load",
     );
   }
   // Starts a provider call on the current page without waiting for approval.
