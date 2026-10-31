@@ -108,6 +108,14 @@ wallet.dapps.onRequest = async (site) => {
   });
   approvalWindowId = window?.id;
 };
+function closeFinishedApprovalWindow() {
+  if (approvalWindowId === undefined || wallet.dapps.approvals().length) return;
+  const id = approvalWindowId;
+  // A following site request must open a new window, not reuse this closing one.
+  // Its removal must not invalidate that following request either.
+  approvalWindowId = undefined;
+  void chrome.windows.remove(id).catch(() => {});
+}
 async function notifySites() {
   const network = await wallet.networks.selected();
   for (const [tabId, site] of sites) {
@@ -195,6 +203,11 @@ chrome.runtime.onMessage.addListener(
       void operation.then(
         (value) => {
           sendResponse({ ok: true, value });
+          if (
+            request.action === "approveDapp" ||
+            request.action === "rejectDapp"
+          )
+            closeFinishedApprovalWindow();
           void notifySites().catch(() => {});
         },
         (error: unknown) =>

@@ -29,6 +29,7 @@ let showingSecret = false;
 let busy = false;
 let uiGeneration = 0;
 let screenId = 0;
+let isApprovalWindow = false;
 
 async function rpc<T = View>(
   action: string,
@@ -1699,6 +1700,11 @@ function home() {
       app.querySelector<HTMLInputElement>('input[name="password"]')?.focus(),
     );
   } else {
+    const pending = state.approvals[0];
+    if (isApprovalWindow && pending) {
+      approval(pending);
+      return;
+    }
     screen();
     const account = accountHeader();
     for (const item of state.approvals)
@@ -1840,6 +1846,9 @@ async function syncState() {
 }
 setInterval(() => void syncState(), 3_000);
 void attempt(async () => {
+  isApprovalWindow =
+    (await chrome.windows.getCurrent().catch(() => undefined))?.type ===
+    "popup";
   state = await rpc("state");
   home();
 });

@@ -1135,6 +1135,10 @@ test("website provider discovers, connects, signs, and hides accounts after lock
         }),
       ),
     ).toEqual([]);
+    const opened =
+      process.env.MADAGAMASK_HEADED === "1"
+        ? context.waitForEvent("page")
+        : undefined;
     const connecting = site.evaluate(() =>
       (window as unknown as { ethereum: Provider }).ethereum.request({
         method: "eth_requestAccounts",
@@ -1187,12 +1191,29 @@ test("website provider discovers, connects, signs, and hides accounts after lock
         .toMatchObject({ topOffset: 0, rightOffset: 0 });
     }
     await popup.reload();
-    await popup
-      .getByRole("button", { name: `Review http://127.0.0.1:${bound.port}` })
+    const reviewButton = popup.getByRole("button", {
+      name: `Review http://127.0.0.1:${bound.port}`,
+    });
+    await expect(reviewButton).toBeVisible();
+    let reviewPage = opened ? await opened : popup;
+    if (opened) {
+      await expect(
+        reviewPage.getByRole("heading", {
+          name: "Connect this site?",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        reviewPage.getByRole("button", { name: /^Review http/ }),
+      ).toHaveCount(0);
+    } else await reviewButton.click();
+    await reviewPage
+      .getByRole("button", { name: "Connect", exact: true })
       .click();
-    await popup.getByRole("button", { name: "Connect", exact: true }).click();
     const accounts = (await connecting) as string[];
     expect(accounts).toHaveLength(1);
+    if (opened) await expect.poll(() => reviewPage.isClosed()).toBe(true);
+    const signingWindow = opened ? context.waitForEvent("page") : undefined;
     const signing = site.evaluate(
       (account) =>
         (window as unknown as { ethereum: Provider }).ethereum.request({
@@ -1216,11 +1237,84 @@ test("website provider discovers, connects, signs, and hides accounts after lock
       )
       .toBe(1);
     await popup.reload();
-    await popup
-      .getByRole("button", { name: `Review http://127.0.0.1:${bound.port}` })
+    if (signingWindow) {
+      reviewPage = await signingWindow;
+      await reviewPage.bringToFront();
+      await expect(
+        reviewPage.getByRole("heading", { name: "Sign message", exact: true }),
+      ).toBeVisible();
+      await expect(
+        reviewPage.getByRole("region", { name: "Complete message" }),
+      ).toContainText("hello");
+    } else await reviewButton.click();
+    await reviewPage
+      .getByRole("button", { name: "Sign message", exact: true })
       .click();
-    await popup.getByRole("button", { name: "Sign message" }).click();
     expect(await signing).toMatch(/^0x[0-9a-f]{130}$/i);
+    if (opened) {
+      await expect.poll(() => reviewPage.isClosed()).toBe(true);
+      expect(popup.isClosed()).toBe(false);
+      const rejectingWindow = context.waitForEvent("page");
+      const rejected = site.evaluate(
+        (account) =>
+          (window as unknown as { ethereum: Provider }).ethereum
+            .request({
+              method: "personal_sign",
+              params: ["0x00", account],
+            })
+            .catch(() => "rejected"),
+        accounts[0],
+      );
+      reviewPage = await rejectingWindow;
+      await expect(
+        reviewPage.getByRole("heading", { name: "Sign message", exact: true }),
+      ).toBeVisible();
+      const other = await context.newPage();
+      await other.goto(`http://localhost:${bound.port}`);
+      await other.waitForFunction(
+        () => !!(window as unknown as { ethereum?: Provider }).ethereum,
+      );
+      const queued = other.evaluate(() =>
+        (window as unknown as { ethereum: Provider }).ethereum
+          .request({ method: "eth_requestAccounts" })
+          .catch(() => "rejected"),
+      );
+      await expect
+        .poll(() =>
+          popup.evaluate(
+            async () =>
+              (
+                await chrome.runtime.sendMessage({
+                  version: 1,
+                  type: "app:command",
+                  action: "state",
+                  params: {},
+                })
+              ).value.approvals.length,
+          ),
+        )
+        .toBe(2);
+      await reviewPage
+        .getByRole("button", { name: "Reject request", exact: true })
+        .click();
+      expect(await rejected).toBe("rejected");
+      expect(reviewPage.isClosed()).toBe(false);
+      await expect(
+        reviewPage.getByRole("heading", {
+          name: "Connect this site?",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        reviewPage.getByRole("region", { name: "Requesting site" }),
+      ).toContainText(`http://localhost:${bound.port}`);
+      await reviewPage
+        .getByRole("button", { name: "Reject request", exact: true })
+        .click();
+      expect(await queued).toBe("rejected");
+      await expect.poll(() => reviewPage.isClosed()).toBe(true);
+      expect(popup.isClosed()).toBe(false);
+    }
     await popup.getByRole("button", { name: "Lock wallet" }).click();
     expect(
       await site.evaluate(() =>

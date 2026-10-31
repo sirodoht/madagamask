@@ -358,3 +358,10 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Removed the left accent border from signing notices, retaining the warning background and text treatment.
 - CSS formatting and both package checks pass; Chrome and Firefox distributions and archives rebuilt.
+
+### Direct approval flow and automatic closing — 2026-10-31
+
+- Dedicated approval windows open directly on the pending request, including subsequent queued requests. The normal toolbar popup and full wallet tab retain their Review buttons.
+- Successful approval or rejection closes the dedicated window when the queue is empty. If another request is pending, the window remains open and displays it next. Failed operations retain their error feedback. The background clears the old window identity before removing it so a following request cannot reuse a closing window or be invalidated by its removal.
+- The windowed Chrome provider regression passes direct connection/signing reviews, automatic closing after connection/signing/rejection, a second-origin queued request, and preservation of the normal wallet tab. An isolated Firefox 159.0 check independently verifies direct connection/message reviews and automatic closing after Connect, Sign, and Reject using disposable keys.
+- Lint/typecheck and both package checks pass; Chrome and Firefox distributions and archives rebuilt.
