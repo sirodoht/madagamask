@@ -11,6 +11,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import decodeQR from "qr/decode.js";
 import {
   createWalletClient,
   custom,
@@ -652,8 +653,72 @@ test("public Sepolia and Base Sepolia balances keep their network context", asyn
       timeout: 30_000,
     });
     await popup.getByRole("button", { name: "Receive", exact: true }).click();
-    await expect(popup.getByText(new RegExp(`chain ${chainId}`))).toBeVisible();
+    await expect(popup.locator(".network-badge")).toHaveText(
+      chainId === 11155111 ? "Sepolia" : "Base Sepolia",
+    );
     await expect(popup.getByRole("img")).toBeVisible();
+    await popup.getByRole("button", { name: "Back", exact: true }).click();
+  }
+});
+
+test("receive keeps account context, copies the full address, and encodes the selected network", async () => {
+  await popup.evaluate(() =>
+    chrome.runtime.sendMessage({
+      version: 1,
+      type: "app:command",
+      action: "import",
+      params: {
+        password: "disposable-receive-password",
+        phrase: "test test test test test test test test test test test junk",
+      },
+    }),
+  );
+  await popup.reload();
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  for (const [id, name] of [
+    [11155111, "Sepolia"],
+    [84532, "Base Sepolia"],
+  ] as const) {
+    await popup.getByLabel("Network", { exact: true }).selectOption(String(id));
+    await popup.getByRole("button", { name: "Receive", exact: true }).click();
+    await expect(
+      popup.getByRole("heading", { name: "Receive", exact: true }),
+    ).toBeVisible();
+    await expect(popup.locator(".account-name")).toHaveText("Account 1");
+    await expect(popup.locator(".network-badge")).toHaveText(name);
+    const address = await popup.locator(".address-value").textContent();
+    const pixels = await popup.locator("canvas").evaluate((canvas) => {
+      if (!(canvas instanceof HTMLCanvasElement))
+        throw new Error("Expected canvas");
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Expected canvas context");
+      const data = context.getImageData(0, 0, canvas.width, canvas.height);
+      return { width: data.width, height: data.height, data: [...data.data] };
+    });
+    expect(decodeQR({ ...pixels, data: new Uint8Array(pixels.data) })).toBe(
+      `ethereum:${address}@${id}`,
+    );
+    for (const width of [320, 396]) {
+      await popup.setViewportSize({ width, height: 600 });
+      expect(
+        await popup.evaluate(
+          () =>
+            document.documentElement.scrollWidth <= innerWidth &&
+            document.documentElement.scrollHeight <= innerHeight,
+        ),
+      ).toBe(true);
+    }
+    const bounds = await popup.locator(".shell").boundingBox();
+    await popup.locator(".address-copy").click();
+    await expect(popup.locator(".address-feedback")).toHaveText(
+      "Address copied ✓",
+    );
+    expect(await popup.evaluate(() => navigator.clipboard.readText())).toBe(
+      address,
+    );
+    expect(await popup.locator(".shell").boundingBox()).toEqual(bounds);
+    await expect(popup.locator(".address-feedback")).toHaveText("");
+    await popup.screenshot({ path: "artifacts/receive.png", fullPage: true });
     await popup.getByRole("button", { name: "Back", exact: true }).click();
   }
 });

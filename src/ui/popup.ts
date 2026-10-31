@@ -1074,11 +1074,8 @@ function receive() {
     (item) => item.id === state.networks.selected,
   );
   if (!account || !network) return;
-  screen("Receive test assets");
-  app.append(
-    el("p", `${network.name} · chain ${network.id}`),
-    el("p", account.address, "address"),
-  );
+  transferHeading("Receive", network.name);
+  const code = el("section", undefined, "receive-code");
   const grid = encodeQR(`ethereum:${account.address}@${network.id}`, "raw", {
     border: 4,
     scale: 1,
@@ -1091,7 +1088,6 @@ function receive() {
     "aria-label",
     `Receive QR code for ${account.address} on ${network.name}`,
   );
-  canvas.style.maxWidth = "100%";
   const context = canvas.getContext("2d");
   if (context) {
     grid.forEach((row, y) => {
@@ -1101,10 +1097,8 @@ function receive() {
       });
     });
   }
-  app.append(
-    canvas,
-    el("p", "Only send test assets on the network shown above."),
-  );
+  code.append(canvas, el("p", "Scan to receive", "receive-caption"));
+  app.append(code);
   back();
 }
 function home() {
