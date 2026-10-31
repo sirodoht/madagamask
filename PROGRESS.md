@@ -268,3 +268,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Replaced the three-dot hover/focus inset border with a filled green background, slightly darker than the account-row highlight so the whole button remains distinct within selected or hovered rows.
 - Lint and both package checks pass. Inspected the filled account-menu hover state in Firefox 159; both distributions and archives rebuilt.
+
+### Popup width for full addresses — 2026-10-31
+
+- Increased the popup shell from 380px to 396px, adding roughly two monospace characters of room for the address when a scrollbar is present.
+- Lint and both package checks pass. Firefox 159 confirms the full address occupies one line with the shell constrained to 381px, simulating 15px of scrollbar space. Both distributions and archives rebuilt.
