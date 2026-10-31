@@ -40,6 +40,7 @@ for (const browser of ["chrome", "firefox"]) {
     }
     const html = await readFile(`${directory}/popup.html`, "utf8");
     assets.push(
+      "qr.js",
       ...[...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1]),
     );
     assets.push(
@@ -66,6 +67,7 @@ for (const browser of ["chrome", "firefox"]) {
     const budgets = {
       "background.js": 700_000,
       "popup.js": 40_000,
+      "qr.js": 20_000,
       "content.js": 5_000,
       "provider.js": 5_000,
     };

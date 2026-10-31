@@ -675,7 +675,12 @@ test("receive keeps account context, copies the full address, and encodes the se
       },
     }),
   );
+  const qrRequests: string[] = [];
+  popup.on("request", (request) => {
+    if (request.url().endsWith("/qr.js")) qrRequests.push(request.url());
+  });
   await popup.reload();
+  expect(qrRequests).toHaveLength(0);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   for (const [id, name] of [
     [11155111, "Sepolia"],
@@ -700,6 +705,7 @@ test("receive keeps account context, copies the full address, and encodes the se
     expect(decodeQR({ ...pixels, data: new Uint8Array(pixels.data) })).toBe(
       `ethereum:${address}@${id}`,
     );
+    expect(qrRequests.length).toBeGreaterThan(0);
     for (const width of [320, 396]) {
       await popup.setViewportSize({ width, height: 600 });
       expect(
@@ -863,6 +869,120 @@ test("activity separates statuses, scopes accounts, and preserves expanded detai
     "data-activity-refreshes",
     "2",
   );
+});
+
+test("tokens load automatically, retry failed balances, and ignore results after navigation", async () => {
+  await popup.evaluate(() =>
+    chrome.runtime.sendMessage({
+      version: 1,
+      type: "app:command",
+      action: "import",
+      params: {
+        password: "disposable-token-password",
+        phrase: "test test test test test test test test test test test junk",
+      },
+    }),
+  );
+  await popup.reload();
+  await expect(popup.locator(".address-value")).toBeVisible();
+  await popup.evaluate(() => {
+    const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+    const address = document.querySelector(".address-value")?.textContent;
+    const assets = [
+      {
+        address: "0x0000000000000000000000000000000000001111",
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        chainId: 11155111,
+      },
+      {
+        address: "0x0000000000000000000000000000000000002222",
+        name: "Wrapped Ether",
+        symbol: "WETH",
+        decimals: 18,
+        chainId: 11155111,
+      },
+    ];
+    const calls = [0, 0];
+    Object.defineProperty(chrome.runtime, "sendMessage", {
+      value: (
+        request: { action?: string; params?: { address?: string } },
+        callback: (value: unknown) => void,
+      ) => {
+        if (request.action === "tokens")
+          return callback({ ok: true, value: assets });
+        if (request.action === "tokenBalance") {
+          const index = assets.findIndex(
+            (token) => token.address === request.params?.address,
+          );
+          const token = assets[index];
+          if (!token) throw new Error("Unexpected token");
+          calls[index] = (calls[index] ?? 0) + 1;
+          const result = {
+            ok: true,
+            value: {
+              address,
+              chainId: index === 0 && calls[index] === 1 ? 1 : 11155111,
+              token: token.address,
+              symbol: token.symbol,
+              balance: index === 0 ? "42.25" : "1.234567890123456789",
+            },
+          };
+          if (index === 1 && calls[index] === 1) {
+            window.addEventListener(
+              "release-token-balance",
+              () => callback(result),
+              { once: true },
+            );
+            return;
+          }
+          return callback(result);
+        }
+        return original(request, callback);
+      },
+    });
+  });
+  await popup.getByRole("button", { name: "Tokens", exact: true }).click();
+  await expect(popup.locator(".token-balance").first()).toHaveText(
+    "Unavailable",
+  );
+  await expect(popup.locator(".token-balance").nth(1)).toHaveAttribute(
+    "data-fetching",
+    "true",
+  );
+  await popup
+    .getByRole("button", { name: "USDC actions", exact: true })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Refresh balance", exact: true })
+    .click();
+  await expect(popup.locator(".token-balance").first()).toHaveText("42.25");
+  await popup
+    .getByRole("button", { name: "Open USD Coin (USDC)", exact: true })
+    .click();
+  await expect(popup.locator(".token-detail-balance")).toHaveText("42.25 USDC");
+  await popup.evaluate(() =>
+    window.dispatchEvent(new Event("release-token-balance")),
+  );
+  await expect(popup.locator(".token-detail-balance")).toHaveText("42.25 USDC");
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(popup.locator(".token-balance")).toHaveText([
+    "42.25",
+    "1.234567890123456789",
+  ]);
+  for (const width of [320, 396]) {
+    await popup.setViewportSize({ width, height: 600 });
+    expect(
+      await popup.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await popup.screenshot({
+    path: "artifacts/token-list-fixture.png",
+    fullPage: true,
+  });
 });
 
 test("production UI imports, sends native assets, imports a token, and sends tokens on a local chain", async () => {
@@ -1133,10 +1253,46 @@ test("production UI imports, sends native assets, imports a token, and sends tok
       .fill(receipt.contractAddress);
     await popup.getByRole("button", { name: "Verify and import" }).click();
     await expect(
-      popup.getByRole("heading", { name: "Madagamask Test Token (MTEST)" }),
+      popup.getByRole("heading", { name: "Tokens", exact: true }),
     ).toBeVisible();
-    await popup.getByRole("button", { name: "Refresh token balance" }).click();
-    await expect(popup.getByText("1000 MTEST", { exact: true })).toBeVisible();
+    await expect(popup.locator(".token-balance")).toHaveText("1000");
+    await expect(popup.locator(".account-name")).toHaveText("Account 1");
+    await expect(popup.locator(".network-badge")).toHaveText(network.name);
+    await popup.screenshot({ path: "artifacts/tokens.png", fullPage: true });
+    await popup
+      .getByRole("button", {
+        name: "Open Madagamask Test Token (MTEST)",
+        exact: true,
+      })
+      .click();
+    await expect(popup.locator(".token-detail-balance")).toHaveText(
+      "1000 MTEST",
+    );
+    await expect(popup.locator(".token-contract .address")).toHaveText(
+      receipt.contractAddress,
+      { ignoreCase: true },
+    );
+    for (const width of [320, 396]) {
+      await popup.setViewportSize({ width, height: 600 });
+      expect(
+        await popup.evaluate(
+          () =>
+            document.documentElement.scrollWidth <= innerWidth &&
+            document.documentElement.scrollHeight <= innerHeight,
+        ),
+      ).toBe(true);
+    }
+    await popup.screenshot({
+      path: "artifacts/token-details.png",
+      fullPage: true,
+    });
+    await popup
+      .getByRole("button", { name: "Send MTEST", exact: true })
+      .click();
+    await popup.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(
+      popup.getByRole("heading", { name: "MTEST", exact: true }),
+    ).toBeVisible();
     await popup
       .getByRole("button", { name: "Send MTEST", exact: true })
       .click();
@@ -1300,6 +1456,35 @@ test("production UI imports, sends native assets, imports a token, and sends tok
     } finally {
       await new Promise<void>((resolve) => dappServer.close(() => resolve()));
     }
+    await popup.getByRole("button", { name: "Tokens", exact: true }).click();
+    await popup
+      .getByRole("button", { name: "MTEST actions", exact: true })
+      .click();
+    await expect(
+      popup.getByRole("menuitem", { name: "Remove token", exact: true }),
+    ).toBeVisible();
+    await popup
+      .getByRole("button", { name: "MTEST actions", exact: true })
+      .click();
+    await expect(
+      popup.getByRole("menuitem", { name: "Remove token", exact: true }),
+    ).toBeHidden();
+    await popup
+      .getByRole("button", { name: "MTEST actions", exact: true })
+      .click();
+    await popup
+      .getByRole("menuitem", { name: "Remove token", exact: true })
+      .click();
+    await expect(
+      popup.getByText("No tokens imported on this network.", { exact: true }),
+    ).toBeVisible();
+    await popup
+      .getByRole("button", { name: "Import token", exact: true })
+      .click();
+    await popup.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(
+      popup.getByRole("heading", { name: "Tokens", exact: true }),
+    ).toBeVisible();
   } finally {
     anvil.kill("SIGTERM");
     await delay(100);

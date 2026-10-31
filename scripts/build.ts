@@ -98,6 +98,21 @@ for (const browser of ["chrome", "firefox"] as const) {
     metafile: true,
     logLevel: "info",
   });
+  const qr = await build({
+    entryPoints: ["src/ui/qr.ts"],
+    outfile: join(outdir, "qr.js"),
+    bundle: true,
+    platform: "browser",
+    format: "esm",
+    target: "es2023",
+    minify: !development,
+    sourcemap: development ? "linked" : false,
+    legalComments: "eof",
+    metafile: true,
+    logLevel: "info",
+  });
+  Object.assign(result.metafile.inputs, qr.metafile.inputs);
+  Object.assign(result.metafile.outputs, qr.metafile.outputs);
   await mkdir("artifacts", { recursive: true });
   await writeFile(
     `artifacts/${browser}-build.json`,

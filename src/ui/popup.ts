@@ -1,4 +1,3 @@
-import encodeQR from "qr";
 import type { ActivityView } from "../core/activity.ts";
 import type { Approval } from "../core/dapps.ts";
 import type { Token } from "../core/tokens.ts";
@@ -950,11 +949,7 @@ function send(token?: Token, draft: Record<string, string> = {}) {
   ) as HTMLButtonElement;
   const actions = el("div", undefined, "action-grid");
   actions.append(
-    button(
-      "Back",
-      () => (token ? attempt(() => tokens(), false) : home()),
-      true,
-    ),
+    button("Back", () => (token ? tokenDetails(token) : home()), true),
     submit,
   );
   sendForm.append(error, actions);
@@ -1100,68 +1095,177 @@ async function activity(refresh = false) {
   render(items);
   if (refresh || matches(items).length) void load();
 }
+function tokenIcon(token: Token) {
+  const icon = el(
+    "span",
+    Array.from(token.symbol).slice(0, 2).join("").toUpperCase(),
+    "token-icon",
+  );
+  icon.style.backgroundColor =
+    ["#e6eee0", "#e2eaf2", "#eee3f0"][
+      Number.parseInt(token.address.slice(-2), 16) % 3
+    ] ?? "#e6eee0";
+  icon.setAttribute("aria-hidden", "true");
+  return icon;
+}
+function tokenLoading(target: HTMLElement) {
+  target.dataset.state = "loading";
+  const spinner = el("span", undefined, "balance-spinner");
+  spinner.setAttribute("role", "img");
+  spinner.setAttribute("aria-label", "Loading token balance");
+  target.replaceChildren(spinner);
+}
+async function tokenBalance(
+  token: Token,
+  target: HTMLElement,
+  showSymbol = false,
+) {
+  if (target.dataset.fetching === "true") return;
+  target.dataset.fetching = "true";
+  const currentScreen = screenId;
+  const account = state.vault.accounts[state.vault.selected];
+  tokenLoading(target);
+  try {
+    const result = await rpc<Awaited<ReturnType<Wallet["tokens"]["balance"]>>>(
+      "tokenBalance",
+      { address: token.address },
+    );
+    if (screenId !== currentScreen) return;
+    if (
+      result.address !== account?.address ||
+      result.chainId !== token.chainId ||
+      result.token !== token.address
+    )
+      throw new Error("Token balance context changed.");
+    target.textContent =
+      result.balance + (showSymbol ? ` ${result.symbol}` : "");
+    target.dataset.state = "ready";
+    target.title = `${result.balance} ${result.symbol}`;
+  } catch {
+    if (screenId === currentScreen) {
+      target.textContent = "Unavailable";
+      target.dataset.state = "error";
+      target.title = "Use Refresh balance in the token menu to try again.";
+    }
+  } finally {
+    delete target.dataset.fetching;
+  }
+}
+function tokenMenu(token: Token, refresh: () => void) {
+  return actionsMenu(`${token.symbol} actions`, [
+    ["Refresh balance", refresh],
+    [
+      "Remove token",
+      () =>
+        void attempt(async () => {
+          await rpc("removeToken", { address: token.address });
+          await tokens();
+        }, false),
+    ],
+  ]);
+}
+function tokenDetails(token: Token) {
+  const network = state.networks.items.find(
+    (item) => item.id === token.chainId,
+  );
+  if (!network) return;
+  transferHeading(token.symbol, network.name);
+  const hero = el("div", undefined, "token-hero");
+  hero.append(tokenIcon(token), el("p", token.name));
+  const balance = el("p", undefined, "balance token-detail-balance");
+  balance.setAttribute("aria-live", "polite");
+  app
+    .querySelector(".transfer-heading")
+    ?.append(tokenMenu(token, () => void tokenBalance(token, balance, true)));
+  const contract = el("section", undefined, "token-contract");
+  contract.append(
+    el("small", "Contract address"),
+    el("p", token.address, "address"),
+  );
+  const actions = el("div", undefined, "action-grid");
+  actions.append(
+    button("Back", () => attempt(() => tokens(), false), true),
+    button(`Send ${token.symbol}`, () => send(token), true),
+  );
+  app.append(hero, balance, contract, actions);
+  void tokenBalance(token, balance, true);
+}
 async function tokens() {
+  const previousScreen = screenId;
   const items = await rpc<Token[]>("tokens");
-  screen("Tokens");
-  if (!items.length) app.append(el("p", "No tokens imported on this network."));
+  if (screenId !== previousScreen) return;
+  const network = state.networks.items.find(
+    (item) => item.id === state.networks.selected,
+  );
+  if (!network) return;
+  transferHeading("Tokens", network.name);
+  const currentScreen = screenId;
+  const list = el("div", undefined, "token-list");
+  if (!items.length)
+    list.append(
+      el("p", "No tokens imported on this network.", "activity-empty"),
+    );
+  const balances: [Token, HTMLElement][] = [];
   for (const token of items) {
-    const card = el("section", undefined, "card stack");
-    card.append(
-      el("h2", `${token.name} (${token.symbol})`),
-      el("p", token.address, "address"),
+    const row = el("div", undefined, "token-row");
+    const open = button("", () => tokenDetails(token), true);
+    open.className = "token-open";
+    open.setAttribute("aria-label", `Open ${token.name} (${token.symbol})`);
+    open.title = token.address;
+    const label = el("span", undefined, "token-label");
+    label.append(el("strong", token.symbol), el("small", token.name));
+    const balance = el("span", undefined, "token-balance");
+    balance.id = `token-balance-${token.address}`;
+    open.setAttribute("aria-describedby", balance.id);
+    balance.setAttribute("aria-live", "polite");
+    tokenLoading(balance);
+    open.append(tokenIcon(token), label, balance);
+    row.append(
+      open,
+      tokenMenu(token, () => void tokenBalance(token, balance)),
     );
-    const balance = el("p", "Balance not loaded");
-    card.append(
-      balance,
-      button(
-        "Refresh token balance",
-        () =>
-          attempt(async () => {
-            const result = await rpc<{ balance: string; symbol: string }>(
-              "tokenBalance",
-              { address: token.address },
-            );
-            balance.textContent = `${result.balance} ${result.symbol}`;
-          }),
-        true,
-      ),
-    );
-    card.append(
-      button(`Send ${token.symbol}`, () => send(token)),
-      button(
-        "Remove token",
-        () =>
-          attempt(async () => {
-            await rpc("removeToken", { address: token.address });
-            await tokens();
-          }),
-        true,
-      ),
-    );
-    app.append(card);
+    list.append(row);
+    balances.push([token, balance]);
   }
   app.append(
-    button("Import token", () =>
-      fields(
-        "Import token",
-        [
-          {
-            key: "address",
-            label: "Token contract address",
-            help: "Check the address independently. Names and symbols are untrusted.",
-          },
-        ],
-        "Verify and import",
-        async (values) => {
-          await rpc("importToken", values);
-          await tokens();
-        },
-      ),
+    list,
+    button(
+      "Import token",
+      () => {
+        transferHeading("Import token", network.name);
+        app.append(
+          form(
+            [
+              {
+                key: "address",
+                label: "Token contract address",
+                help: `Use the contract address on ${network.name}.`,
+              },
+            ],
+            "Verify and import",
+            (values) =>
+              attempt(async () => {
+                await rpc("importToken", {
+                  address: (values.address ?? "").trim(),
+                });
+                await tokens();
+              }),
+          ),
+        );
+        back(() => void attempt(() => tokens(), false));
+      },
+      true,
     ),
   );
   back();
+  void (async () => {
+    for (const [token, balance] of balances) {
+      if (screenId !== currentScreen) break;
+      await tokenBalance(token, balance);
+    }
+  })();
 }
-function receive() {
+async function receive() {
   const account = state.vault.accounts[state.vault.selected];
   const network = state.networks.items.find(
     (item) => item.id === state.networks.selected,
@@ -1169,6 +1273,26 @@ function receive() {
   if (!account || !network) return;
   transferHeading("Receive", network.name);
   const code = el("section", undefined, "receive-code");
+  const pending = el("span", undefined, "balance-spinner");
+  pending.setAttribute("role", "img");
+  pending.setAttribute("aria-label", "Loading QR code");
+  code.append(pending);
+  app.append(code);
+  back();
+  const currentScreen = screenId;
+  let encodeQR: typeof import("./qr.ts")["default"];
+  try {
+    const qr = (await import(
+      chrome.runtime.getURL("qr.js")
+    )) as typeof import("./qr.ts");
+    if (screenId !== currentScreen) return;
+    encodeQR = qr.default;
+  } catch {
+    code.replaceChildren(
+      el("p", "QR code unavailable. Copy the address above."),
+    );
+    return;
+  }
   const grid = encodeQR(`ethereum:${account.address}@${network.id}`, "raw", {
     border: 4,
     scale: 1,
@@ -1190,9 +1314,7 @@ function receive() {
       });
     });
   }
-  code.append(canvas, el("p", "Scan to receive", "receive-caption"));
-  app.append(code);
-  back();
+  code.replaceChildren(canvas, el("p", "Scan to receive", "receive-caption"));
 }
 function home() {
   const vault = state.vault;
@@ -1320,7 +1442,7 @@ function home() {
       const navigation = el("nav", undefined, "wallet-nav");
       navigation.setAttribute("aria-label", "Wallet navigation");
       navigation.append(
-        button("Tokens", () => attempt(() => tokens()), true),
+        button("Tokens", () => attempt(() => tokens(), false), true),
         button("Activity", () => attempt(() => activity(), false), true),
         button("Settings", () => settings(), true),
       );

@@ -532,6 +532,8 @@ main h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-height: 268px;
   gap: 8px;
   padding: 8px 0;
 }
@@ -630,6 +632,98 @@ main h1 {
   padding: 32px 0;
   font-size: 0.875rem;
   text-align: center;
+}
+
+.token-list {
+  display: grid;
+  gap: 8px;
+}
+.token-row {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.token-row:hover,
+.token-row:focus-within {
+  background: var(--color-accent-soft);
+}
+.token-open {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(0, 38%);
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+  padding: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+.token-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.token-label {
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.token-label small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+.token-balance {
+  text-align: right;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.token-balance .balance-spinner {
+  width: 16px;
+  height: 16px;
+}
+.token-balance[data-state="error"] {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+.token-hero {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.token-hero .token-icon {
+  width: 48px;
+  height: 48px;
+  font-size: 1rem;
+}
+.token-detail-balance {
+  display: grid;
+  place-items: center;
+  min-height: 80px;
+}
+.token-contract {
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.token-contract .address {
+  margin-top: 4px;
+  font-size: 0.75rem;
 }
 
 .wallet-group {
