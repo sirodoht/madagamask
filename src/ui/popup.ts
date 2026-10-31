@@ -2,6 +2,7 @@ import encodeQR from "qr";
 import type { Approval } from "../core/dapps.ts";
 import type { Token } from "../core/tokens.ts";
 import type { Activity, Preview } from "../core/transactions.ts";
+import type { PublicWallet, WalletKind } from "../core/vault.ts";
 import type { Wallet } from "../core/wallet.ts";
 import { button, el, type Field, form } from "./dom.ts";
 
@@ -105,7 +106,7 @@ const passwordField: Field = {
   help: "At least 12 characters.",
 };
 
-function onboarding(importing: boolean) {
+function onboarding(importing: boolean, kind: WalletKind = "mnemonic") {
   fields(
     importing ? "Import wallet" : "Create wallet",
     [
@@ -113,9 +114,13 @@ function onboarding(importing: boolean) {
         ? [
             {
               key: "phrase",
-              label: "Recovery phrase",
-              type: "textarea",
-              help: "English BIP39. Standard Ethereum path m/44'/60'/0'/0/index. BIP39 passphrases are not supported.",
+              label:
+                kind === "mnemonic"
+                  ? "Recovery phrase"
+                  : kind === "seed"
+                    ? "Seed (hexadecimal)"
+                    : "Private key",
+              type: kind === "mnemonic" ? "textarea" : "password",
             },
           ]
         : []),
@@ -128,39 +133,101 @@ function onboarding(importing: boolean) {
         throw new Error("Passwords do not match.");
       await command(importing ? "import" : "create", {
         password: values.password,
-        ...(importing ? { phrase: values.phrase } : {}),
+        ...(importing ? { secret: values.phrase, kind } : {}),
       });
     },
   );
 }
-function backup(index?: number) {
+const walletLabels: Record<WalletKind, string> = {
+  mnemonic: "Mnemonic",
+  seed: "Seed",
+  privateKey: "Private key",
+};
+function selectedWallet() {
+  const id = state.vault.accounts[state.vault.selected]?.walletId;
+  const wallet = state.vault.wallets.find((wallet) => wallet.id === id);
+  if (!wallet) throw new Error("Wallet not found.");
+  return wallet;
+}
+function addAccount(wallet: PublicWallet, returnTo: () => void = home) {
   fields(
-    index === undefined ? "Back up recovery phrase" : "Export imported key",
-    [passwordField],
+    `Add account · ${wallet.name}`,
+    [{ key: "name", label: "Account name" }],
+    "Add account",
+    (values) => command("addAccount", { ...values, walletId: wallet.id }),
+    returnTo,
+  );
+}
+function renameWallet(wallet: PublicWallet, returnTo: () => void) {
+  fields(
+    "Rename wallet",
+    [{ key: "name", label: "Wallet name", value: wallet.name }],
+    "Save name",
+    (values) => command("renameWallet", { ...values, walletId: wallet.id }),
+    returnTo,
+  );
+}
+function manageWallet(wallet: PublicWallet) {
+  screen(wallet.name);
+  app.append(el("p", walletLabels[wallet.kind]));
+  const returnTo = () => manageWallet(wallet);
+  if (wallet.kind !== "privateKey")
+    app.append(button("Add account", () => addAccount(wallet, returnTo), true));
+  app.append(
+    button("Rename wallet", () => renameWallet(wallet, returnTo), true),
+    button("Back up wallet", () => backup(wallet, returnTo), true),
+  );
+  back();
+}
+function addWallet(returnTo: () => void = home) {
+  screen("Add wallet");
+  const choose = (kind: WalletKind, generate = false) => {
+    fields(
+      generate ? "Create wallet" : `Import ${walletLabels[kind].toLowerCase()}`,
+      [
+        { key: "name", label: "Wallet name" },
+        ...(generate
+          ? []
+          : [
+              {
+                key: "secret",
+                label:
+                  kind === "mnemonic"
+                    ? "Recovery phrase"
+                    : kind === "seed"
+                      ? "Seed (hexadecimal)"
+                      : "Private key",
+                type: kind === "mnemonic" ? "textarea" : "password",
+              },
+            ]),
+      ],
+      generate ? "Create wallet" : "Import wallet",
+      (values) => command("addWallet", { ...values, kind }),
+      () => addWallet(returnTo),
+    );
+  };
+  app.append(
+    button("Create wallet", () => choose("mnemonic", true), true),
+    button("Import mnemonic", () => choose("mnemonic"), true),
+    button("Import seed", () => choose("seed"), true),
+    button("Import private key", () => choose("privateKey"), true),
+  );
+  back(returnTo);
+}
+function backup(wallet = selectedWallet(), returnTo: () => void = settings) {
+  fields(
+    `Back up ${wallet.name}`,
+    [{ key: "password", label: "Password", type: "password" }],
     "Reveal backup",
     async (values) => {
       const { secret } = await rpc<{ secret: string }>("reveal", {
         password: values.password,
-        ...(index !== undefined ? { index } : {}),
+        walletId: wallet.id,
       });
-      screen("Keep this private");
-      app.append(
-        el(
-          "p",
-          index === undefined
-            ? "Recovery phrase · restores all recovery phrase accounts"
-            : `${state.vault.accounts[index]?.name} · private key for this account only`,
-        ),
-      );
+      screen(`${wallet.name} · ${walletLabels[wallet.kind]}`);
       showingSecret = true;
-      app.append(
-        el(
-          "p",
-          "Write this down offline. Anyone with this backup can control the account. It will hide after one minute.",
-        ),
-      );
       app.append(el("pre", secret, "secret"));
-      if (index === undefined && !state.vault.backedUp) {
+      if (!wallet.backedUp) {
         app.append(
           form(
             [
@@ -171,25 +238,18 @@ function backup(index?: number) {
               },
             ],
             "Confirm backup",
-            (values) => attempt(() => command("confirmBackup", values)),
+            (values) =>
+              attempt(() =>
+                command("confirmBackup", { ...values, walletId: wallet.id }),
+              ),
           ),
         );
       }
-      back(settings);
+      back(returnTo);
       secretTimer = setTimeout(() => home(), 60_000);
     },
-    settings,
+    returnTo,
   );
-  app
-    .querySelector("h1")
-    ?.after(
-      el(
-        "p",
-        index === undefined
-          ? "For all recovery phrase accounts"
-          : `For ${state.vault.accounts[index]?.name} only`,
-      ),
-    );
 }
 async function connections() {
   const grants = await rpc<Record<string, string[]>>("connections");
@@ -319,15 +379,14 @@ function approval(item: Approval) {
 }
 function settings() {
   screen("Settings");
-  const account = state.vault.accounts[state.vault.selected];
-  if (account)
-    app.append(
-      el(
-        "p",
-        `${account.name} · Backup: ${account.imported ? "this account’s private key" : "recovery phrase"}`,
-        "settings-account",
-      ),
-    );
+  const wallet = selectedWallet();
+  app.append(
+    el(
+      "p",
+      `${wallet.name} · ${walletLabels[wallet.kind]}`,
+      "settings-account",
+    ),
+  );
   const actions = el("div", undefined, "action-grid settings-grid");
   app.append(actions);
   actions.append(
@@ -369,50 +428,15 @@ function settings() {
       true,
     ),
   );
-  actions.append(button("Back up recovery phrase", () => backup(), true));
-  if (state.vault.accounts[state.vault.selected]?.imported)
+  actions.append(
+    button("Back up wallet", () => backup(wallet), true),
+    button("Rename wallet", () => renameWallet(wallet, settings), true),
+    button("Add wallet", () => addWallet(settings), true),
+  );
+  if (wallet.kind !== "privateKey")
     actions.append(
-      button(
-        "Back up selected private key",
-        () => backup(state.vault.selected),
-        true,
-      ),
+      button("Add account", () => addAccount(wallet, settings), true),
     );
-  actions.append(
-    button(
-      "Add account",
-      () =>
-        fields(
-          "Add recovery phrase account",
-          [{ key: "name", label: "Account name" }],
-          "Add account",
-          (values) => command("addAccount", values),
-          settings,
-        ),
-      true,
-    ),
-  );
-  actions.append(
-    button(
-      "Import private key",
-      () =>
-        fields(
-          "Import private key",
-          [
-            { key: "name", label: "Account name" },
-            {
-              key: "privateKey",
-              label: "Private key",
-              type: "password",
-            },
-          ],
-          "Import key",
-          (values) => command("addAccount", values),
-          settings,
-        ),
-      true,
-    ),
-  );
   actions.append(
     button(
       "Rename account",
@@ -476,7 +500,7 @@ function settings() {
             {
               key: "confirmation",
               label: "Type DELETE",
-              help: "This removes your local wallet. Back up the recovery phrase AND all imported private keys first.",
+              help: "This removes all local wallets and accounts. Make sure you have a backup of each wallet.",
             },
           ],
           "Delete local wallet",
@@ -748,7 +772,22 @@ function home() {
         "Create a fresh test wallet, or restore one from its recovery phrase.",
       ),
       button("Create wallet", () => onboarding(false)),
-      button("Import wallet", () => onboarding(true), true),
+      button(
+        "Import wallet",
+        () => {
+          screen("Import wallet");
+          for (const kind of ["mnemonic", "seed", "privateKey"] as const)
+            app.append(
+              button(
+                `Import ${walletLabels[kind].toLowerCase()}`,
+                () => onboarding(true, kind),
+                true,
+              ),
+            );
+          back();
+        },
+        true,
+      ),
     );
   } else if (vault.state === "locked") {
     screen("Welcome back");
@@ -796,19 +835,45 @@ function home() {
     select.setAttribute("aria-expanded", "false");
     const options: HTMLButtonElement[] = [];
     let selectedOption: HTMLButtonElement | undefined;
-    for (const imported of [false, true]) {
+    const menuAction = (
+      label: string,
+      action: () => void,
+      className = "account-option",
+    ) => {
+      const item = button(
+        label,
+        () => {
+          menu.hidePopover();
+          action();
+        },
+        true,
+      );
+      item.className = className;
+      item.setAttribute("role", "menuitem");
+      item.tabIndex = -1;
+      options.push(item);
+      return item;
+    };
+    for (const wallet of vault.wallets) {
       const members = vault.accounts
         .map((account, index) => ({ account, index }))
-        .filter(({ account }) => account.imported === imported);
-      if (!members.length) continue;
-      const title = imported
-        ? "Private key accounts"
-        : "Recovery phrase accounts";
+        .filter(({ account }) => account.walletId === wallet.id);
       const group = el("div", undefined, "account-group");
       group.setAttribute("role", "group");
-      group.setAttribute("aria-label", title);
+      group.setAttribute("aria-label", wallet.name);
       const heading = el("div", undefined, "account-group-heading");
-      heading.append(el("h2", title));
+      const title = el("div", undefined, "wallet-title");
+      title.append(
+        el("h2", wallet.name),
+        el("span", walletLabels[wallet.kind], "wallet-kind"),
+      );
+      const manage = menuAction(
+        "⋯",
+        () => manageWallet(wallet),
+        "wallet-manage",
+      );
+      manage.setAttribute("aria-label", `Manage ${wallet.name}`);
+      heading.append(title, manage);
       group.append(heading);
       for (const { account, index } of members) {
         const option = button(
@@ -831,8 +896,23 @@ function home() {
         options.push(option);
         group.append(option);
       }
+      if (wallet.kind !== "privateKey")
+        group.append(
+          menuAction(
+            "+ Add account",
+            () => addAccount(wallet),
+            "account-option wallet-add-account",
+          ),
+        );
       menu.append(group);
     }
+    menu.append(
+      menuAction(
+        "+ Add wallet",
+        () => addWallet(),
+        "account-option wallet-add",
+      ),
+    );
     menu.addEventListener("beforetoggle", (event) => {
       const open = (event as ToggleEvent).newState === "open";
       select.setAttribute("aria-expanded", String(open));
@@ -841,7 +921,7 @@ function home() {
       menu.style.left = `${bounds.left}px`;
       menu.style.top = `${bounds.bottom + 4}px`;
       menu.style.width = `${Math.min(360, innerWidth - bounds.left - 16)}px`;
-      menu.style.maxHeight = `${Math.max(44, Math.min(360, innerHeight - bounds.bottom - 20))}px`;
+      menu.style.maxHeight = `${Math.max(44, Math.min(480, innerHeight - bounds.bottom - 20))}px`;
     });
     select.addEventListener("keydown", (event) => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {

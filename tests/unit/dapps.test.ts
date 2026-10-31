@@ -227,3 +227,27 @@ test("approved network switches resolve and invalidate other reviews", async () 
   assert.equal(await switching.result(), null);
   assert.equal((await wallet.networks.selected()).id, 84532);
 });
+
+test("adding a wallet or child account invalidates pending approval and changes account permission context", async () => {
+  for (const [action, params] of [
+    ["addAccount", { name: "Second", walletId: "wallet-1" }],
+    [
+      "addWallet",
+      { name: "Single", kind: "privateKey", secret: `0x${"44".repeat(32)}` },
+    ],
+  ] as const) {
+    const wallet = await setup();
+    const connect = await pending(wallet, { method: "eth_requestAccounts" });
+    await wallet.run("approveDapp", { id: connect.approval.id });
+    await connect.result();
+    const account = (await wallet.dapps.accounts(site.origin))[0];
+    const signing = await pending(wallet, {
+      method: "personal_sign",
+      params: ["0x6869", account],
+    });
+    await wallet.run(action, params);
+    await assert.rejects(signing.result(), /context changed/);
+    assert.deepEqual(await wallet.dapps.accounts(site.origin), []);
+    assert.equal(wallet.dapps.approvals().length, 0);
+  }
+});

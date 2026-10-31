@@ -216,7 +216,7 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
       ),
     ).toBe(true);
     await expect(
-      popup.getByRole("button", { name: "Back up selected private key" }),
+      popup.getByRole("button", { name: "Back up wallet" }),
     ).toBeVisible();
     if (width === 380)
       await popup.screenshot({
@@ -227,10 +227,9 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
       for (const label of [
         "Connected sites",
         "Add or edit network",
-        "Back up recovery phrase",
-        "Back up selected private key",
-        "Add account",
-        "Import private key",
+        "Back up wallet",
+        "Rename wallet",
+        "Add wallet",
         "Rename account",
         "Change password",
         "Auto-lock",
@@ -242,10 +241,7 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
           popup.getByRole("heading", { name: "Settings", exact: true }),
         ).toBeVisible();
       }
-      for (const label of [
-        "Back up recovery phrase",
-        "Back up selected private key",
-      ]) {
+      for (const label of ["Back up wallet"]) {
         await popup.getByRole("button", { name: label, exact: true }).click();
         await popup
           .getByLabel("Password", { exact: true })
@@ -282,7 +278,10 @@ test("account menu supports keyboard selection and dismissal", async () => {
       name: "Imported key",
       privateKey: `0x${"22".repeat(32)}`,
     });
-    await command("addAccount", { name: "Second account" });
+    await command("addAccount", {
+      name: "Second account",
+      walletId: "wallet-1",
+    });
     await command("selectAccount", { index: 0 });
   });
   await popup.reload();
@@ -296,12 +295,12 @@ test("account menu supports keyboard selection and dismissal", async () => {
   ).toBeFocused();
   await expect(
     popup
-      .getByRole("group", { name: "Recovery phrase accounts", exact: true })
+      .getByRole("group", { name: "Wallet 1", exact: true })
       .getByRole("menuitemradio"),
   ).toHaveCount(2);
   await expect(
     popup
-      .getByRole("group", { name: "Private key accounts", exact: true })
+      .getByRole("group", { name: "Wallet 2", exact: true })
       .getByRole("menuitemradio"),
   ).toHaveCount(1);
   await popup.keyboard.press("ArrowDown");
@@ -328,6 +327,10 @@ test("account menu supports keyboard selection and dismissal", async () => {
   await selector.click();
   await popup.keyboard.press("End");
   await expect(
+    popup.getByRole("menuitem", { name: "+ Add wallet", exact: true }),
+  ).toBeFocused();
+  await popup.keyboard.press("ArrowUp");
+  await expect(
     popup.getByRole("menuitemradio", { name: "Imported key", exact: true }),
   ).toBeFocused();
   await popup.keyboard.press("Enter");
@@ -343,10 +346,10 @@ test("account menu supports keyboard selection and dismissal", async () => {
   await popup.keyboard.press("Escape");
   await popup.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(popup.locator(".settings-account")).toHaveText(
-    "Imported key · Backup: this account’s private key",
+    "Wallet 2 · Private key",
   );
   await popup
-    .getByRole("button", { name: "Back up selected private key", exact: true })
+    .getByRole("button", { name: "Back up wallet", exact: true })
     .click();
   await popup
     .getByLabel("Password", { exact: true })
@@ -371,7 +374,7 @@ test("create, back up, lock, and restore a wallet through the production UI", as
   await expect(popup.getByLabel("Account", { exact: true })).toBeVisible();
   const address = await popup.locator(".address").textContent();
   await popup.getByRole("button", { name: "Settings", exact: true }).click();
-  await popup.getByRole("button", { name: "Back up recovery phrase" }).click();
+  await popup.getByRole("button", { name: "Back up wallet" }).click();
   await popup
     .getByLabel("Password", { exact: true })
     .fill("a-disposable-test-password");
@@ -612,6 +615,9 @@ test("production UI imports, sends native assets, imports a token, and sends tok
       .toBe(true);
     await popup
       .getByRole("button", { name: "Import wallet", exact: true })
+      .click();
+    await popup
+      .getByRole("button", { name: "Import mnemonic", exact: true })
       .click();
     await popup
       .getByLabel("Recovery phrase", { exact: true })
@@ -934,4 +940,137 @@ test("external EIP-6963 demo interoperability", async () => {
     path: "artifacts/external-demo.png",
     fullPage: true,
   });
+});
+
+test("named wallets expose their source, child accounts and wallet-specific actions", async () => {
+  const password = "disposable-multi-wallet-password";
+  await popup
+    .getByRole("button", { name: "Import wallet", exact: true })
+    .click();
+  await popup.getByRole("button", { name: "Import seed", exact: true }).click();
+  const seed = "000102030405060708090a0b0c0d0e0f";
+  await popup.getByLabel("Seed (hexadecimal)").fill(seed);
+  await popup.getByLabel("Password", { exact: true }).fill(password);
+  await popup.getByLabel("Confirm password", { exact: true }).fill(password);
+  await popup.getByRole("button", { name: "Import test wallet" }).click();
+  const selector = popup.getByRole("button", { name: "Account", exact: true });
+  await expect(selector).toBeVisible();
+  const firstAddress = await popup.locator(".address-copy").textContent();
+  await selector.click();
+  await expect(
+    popup
+      .getByRole("group", { name: "Wallet 1", exact: true })
+      .locator(".wallet-kind"),
+  ).toHaveText("Seed");
+  await popup
+    .getByRole("menuitem", { name: "Manage Wallet 1", exact: true })
+    .click();
+  await popup.getByRole("button", { name: "Rename wallet" }).click();
+  await popup.getByLabel("Wallet name").fill("Trading");
+  await popup.getByRole("button", { name: "Save name" }).click();
+  await selector.click();
+  await popup
+    .getByRole("group", { name: "Trading", exact: true })
+    .getByRole("menuitem", { name: "+ Add account" })
+    .click();
+  await popup.getByLabel("Account name").fill("Trading two");
+  await popup.getByRole("button", { name: "Add account", exact: true }).click();
+  await expect(selector).toHaveText("Trading two");
+  await expect(popup.locator(".address-copy")).not.toHaveText(
+    firstAddress ?? "",
+  );
+  const importWallet = async (
+    name: string,
+    kind: string,
+    label: string,
+    value: string,
+  ) => {
+    await selector.click();
+    await popup
+      .getByRole("menuitem", { name: "+ Add wallet", exact: true })
+      .click();
+    await popup
+      .getByRole("button", { name: `Import ${kind}`, exact: true })
+      .click();
+    await popup.getByLabel("Wallet name").fill(name);
+    await popup.getByLabel(label, { exact: true }).fill(value);
+    await popup
+      .getByRole("button", { name: "Import wallet", exact: true })
+      .click();
+    await expect(selector).toHaveText("Account 1");
+  };
+  await importWallet(
+    "Personal",
+    "mnemonic",
+    "Recovery phrase",
+    "test test test test test test test test test test test junk",
+  );
+  await importWallet(
+    "gox",
+    "private key",
+    "Private key",
+    `0x${"33".repeat(32)}`,
+  );
+  await selector.click();
+  for (const [name, kind, count] of [
+    ["Trading", "Seed", 2],
+    ["Personal", "Mnemonic", 1],
+    ["gox", "Private key", 1],
+  ] as const) {
+    const group = popup.getByRole("group", { name, exact: true });
+    await expect(group.locator(".wallet-kind")).toHaveText(kind);
+    await expect(group.getByRole("menuitemradio")).toHaveCount(count);
+    await expect(
+      group.getByRole("menuitem", { name: "+ Add account" }),
+    ).toHaveCount(kind === "Private key" ? 0 : 1);
+  }
+  await popup.setViewportSize({ width: 380, height: 600 });
+  await popup.screenshot({
+    path: "artifacts/named-wallets-chrome.png",
+    fullPage: true,
+  });
+  await popup
+    .getByRole("menuitem", { name: "Manage Trading", exact: true })
+    .click();
+  await popup.getByRole("button", { name: "Back up wallet" }).click();
+  await popup.getByLabel("Password", { exact: true }).fill(password);
+  await popup.getByRole("button", { name: "Reveal backup" }).click();
+  await expect(popup.locator(".secret")).toHaveText(`0x${seed}`);
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(popup.locator(".secret")).toHaveCount(0);
+  await expect(
+    popup.getByRole("heading", { name: "Trading", exact: true }),
+  ).toBeVisible();
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await selector.click();
+  await popup
+    .getByRole("menuitem", { name: "Manage gox", exact: true })
+    .click();
+  await expect(
+    popup.getByRole("button", { name: "Add account", exact: true }),
+  ).toHaveCount(0);
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await selector.click();
+  await popup
+    .getByRole("menuitem", { name: "+ Add wallet", exact: true })
+    .click();
+  await popup
+    .getByRole("button", { name: "Create wallet", exact: true })
+    .click();
+  await popup.getByLabel("Wallet name").fill("Fresh");
+  await popup
+    .getByRole("button", { name: "Create wallet", exact: true })
+    .click();
+  await expect(selector).toHaveText("Account 1");
+  await popup.getByRole("button", { name: "Settings", exact: true }).click();
+  await popup.getByRole("button", { name: "Back up wallet" }).click();
+  await popup.getByLabel("Password", { exact: true }).fill(password);
+  await popup.getByRole("button", { name: "Reveal backup" }).click();
+  const freshPhrase = await popup.locator(".secret").textContent();
+  expect(freshPhrase?.split(" ")).toHaveLength(12);
+  await popup
+    .getByLabel("Confirm your recovery phrase")
+    .fill(freshPhrase ?? "");
+  await popup.getByRole("button", { name: "Confirm backup" }).click();
+  await expect(selector).toBeVisible();
 });

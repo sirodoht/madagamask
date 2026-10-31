@@ -12,7 +12,7 @@ An approval must be tied to a fixed payload, site, account, and chain. A changed
 
 ## Persistence and lifecycle
 
-Only ciphertext and public metadata persist. Chrome's two-second heartbeat writes a timestamp to session storage, which retains its default trusted-context access. It cannot guarantee execution. Unlocked secrets remain in background memory and are lost after termination/restart. Manual lock and auto-lock clear references regardless of heartbeat state. JavaScript does not guarantee physical memory erasure; zeroing byte buffers and dropping references reduces exposure, not a claim of complete erasure.
+Only ciphertext and public metadata persist on disk. Trusted extension contexts store a temporary vault-unlock key, salt, activity time, and expiry in browser session storage to restore the encrypted vault after background suspension. Content scripts cannot access this storage. Passwords and decrypted wallet secrets are not stored there. Manual lock, expiry, browser startup, and extension install/update clear the session. Chrome’s two-second heartbeat writes a timestamp to session storage; it cannot guarantee execution. JavaScript does not guarantee physical memory erasure; zeroing byte buffers and dropping references reduces exposure, not a claim of complete erasure.
 
 Vault mutations are serialized and committed as one versioned storage value. Failed writes preserve the previous committed state. Invalid or future versions are rejected without overwriting them. Transaction activity is persisted before submission to handle ambiguous RPC results without sending twice.
 
@@ -26,8 +26,10 @@ Viem provides derivation, encoding, and signing, with its pinned noble/scure cry
 
 Compromised operating systems/browsers, malicious extension updates, hardware wallets, real-money use, and guaranteed detection of phishing or malicious contract behavior. RPC providers can observe addresses and requests, lie, fail, or censor. Simulations never prove safety.
 
-## Vault format v1
+## Vault envelope v1 and payload v2
 
-AES-256-GCM uses a fresh random 96-bit IV for every write, a random 256-bit salt on creation/password change, and authenticated additional data `madagamask:vault:1`. PBKDF2-HMAC-SHA-256 uses exactly 600,000 iterations; unsupported parameters/formats fail closed. The non-extractable encryption key and decrypted payload exist only in worker memory. The design follows the [OWASP PBKDF2 guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html); this is a design choice for native Web Crypto, not an independent review.
+AES-256-GCM uses a fresh random 96-bit IV for every write, a random 256-bit salt on creation/password change, and authenticated additional data `madagamask:vault:1`. PBKDF2-HMAC-SHA-256 uses exactly 600,000 iterations; unsupported parameters/formats fail closed. With browser session restoration enabled, the encryption key is extractable for trusted session storage; decrypted wallet payloads remain in background memory apart from reauthenticated backup display. The design follows the [OWASP PBKDF2 guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html); this is a design choice for native Web Crypto, not an independent review.
 
-Recovery supports English BIP39 phrases with checksum validation and path `m/44'/60'/0'/0/index`. BIP39 passphrases and alternate paths are not supported. Imported private keys need separate backups. Passwords require 12–256 characters. Freshly generated wallets must confirm their phrase before signing. Backup reveal and reset require password reauthentication. Reset needs the literal confirmation DELETE.
+Payload v2 holds named wallets with their source type and secret, plus accounts linked by wallet ID. Legacy v1 payloads migrate in memory and are rewritten only on a successful mutation. Invalid account ownership is rejected.
+
+Recovery supports English BIP39 phrases with checksum validation, raw BIP32 seeds (16–64 bytes), and path `m/44'/60'/0'/0/index`. BIP39 passphrases and alternate paths are not supported. Each wallet is backed up separately. A private-key wallet contains one account; mnemonic and seed wallets derive children independently. Passwords require 12–256 characters. Freshly generated wallets must confirm their phrase before signing. Backup reveal and reset require password reauthentication. Reset needs the literal confirmation DELETE.
