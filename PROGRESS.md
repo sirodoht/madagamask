@@ -253,3 +253,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Replaced visible Loading balance text with a small spinner, retaining an accessible loading description and reduced-motion support. Refresh is hidden while the request is pending and returns on success/error; its reserved space and the balance row keep the layout steady.
 - Lint/typecheck and both package checks pass. The existing Chrome local-chain balance/refresh/transfer flow passes. Firefox 159 inspection confirms a spinner with no visible loading text, hidden refresh, and identical 393px shell height before/after loading. Both distributions and archives rebuilt.
+
+### Three-dot button hover frame — 2026-10-31
+
+- Added a subtle inset frame around wallet/account three-dot buttons on hover and keyboard focus. The inset styling preserves button dimensions and the full-row highlight.
+- Lint and both package checks pass; inspected the account-menu hover frame in Firefox 159. Both distributions and archives rebuilt.
