@@ -146,6 +146,26 @@ Unsupported today and needed by real dapps. Old or deprecated methods, such as `
 - [ ] WalletConnect.
 - [ ] Require typing `UNLIMITED` to approve an unlimited token allowance.
 
+## EVM chains
+
+Signing on these chains follows Ethereum mainnet, and each one needs its own fee and RPC checks first.
+
+| Chain           | Chain ID | Native currency |
+| --------------- | -------- | --------------- |
+| Arbitrum One    | 42161    | ETH             |
+| OP Mainnet      | 10       | ETH             |
+| Base            | 8453     | ETH             |
+| Polygon         | 137      | POL             |
+| BNB Smart Chain | 56       | BNB             |
+| Avalanche       | 43114    | AVAX            |
+| Linea           | 59144    | ETH             |
+| Scroll          | 534352   | ETH             |
+| ZKsync Era      | 324      | ETH             |
+| Gnosis          | 100      | XDAI            |
+| Mantle          | 5000     | MNT             |
+| Celo            | 42220    | CELO            |
+| Blast           | 81457    | ETH             |
+
 ## RPC settings
 
 Public RPC providers remain the default; Madagamask operates no server and needs no user-run node.
