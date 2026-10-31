@@ -109,6 +109,344 @@ test.afterEach(async () => {
   if (profile) await rm(profile, { recursive: true, force: true });
 });
 
+async function localReliabilityWallet() {
+  const server = createServer(async (request, response) => {
+    let raw = "";
+    for await (const chunk of request) raw += chunk;
+    const body = JSON.parse(raw);
+    response.setHeader("Content-Type", "application/json");
+    response.end(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: body.method === "eth_chainId" ? "0x7a69" : "0xde0b6b3a7640000",
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const bound = server.address();
+  if (!bound || typeof bound === "string") throw new Error("No RPC port");
+  const close = async () => {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  };
+  try {
+    await popup.evaluate(async (rpc) => {
+      const command = (action: string, params: Record<string, unknown>) =>
+        chrome.runtime.sendMessage({
+          version: 1,
+          type: "app:command",
+          action,
+          params,
+        });
+      await command("addNetwork", {
+        id: 31337,
+        name: "Local",
+        symbol: "ETH",
+        rpc,
+      });
+      await command("selectNetwork", { id: 31337 });
+      await command("import", {
+        password: "disposable-reliability-password",
+        phrase: "test test test test test test test test test test test junk",
+      });
+    }, `http://127.0.0.1:${bound.port}`);
+    await popup.reload();
+    await expect(popup.locator(".balance")).toHaveText("1 ETH");
+    return close;
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
+
+test("a lock interrupts a busy backup reveal and late responses cannot resurrect it", async () => {
+  await popup.clock.install();
+  const close = await localReliabilityWallet();
+  try {
+    await popup.getByRole("button", { name: "Account", exact: true }).click();
+    await popup
+      .getByRole("button", { name: "Wallet actions for Wallet 1", exact: true })
+      .click();
+    await popup
+      .getByRole("menuitem", { name: "Back up wallet", exact: true })
+      .click();
+    await popup.evaluate(() => {
+      const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+      Object.defineProperty(chrome.runtime, "sendMessage", {
+        value: (
+          request: { action?: string },
+          callback: (value: unknown) => void,
+        ) => {
+          if (request.action === "reveal") {
+            original(request, (response: unknown) => {
+              (
+                window as unknown as { releaseReveal: () => void }
+              ).releaseReveal = () => callback(response);
+              document.documentElement.dataset.revealHeld = "true";
+            });
+            return;
+          }
+          return original(request, callback);
+        },
+      });
+    });
+    await popup
+      .getByLabel("Password", { exact: true })
+      .fill("disposable-reliability-password");
+    await popup
+      .getByRole("button", { name: "Reveal backup", exact: true })
+      .click();
+    await expect(popup.locator("html")).toHaveAttribute(
+      "data-reveal-held",
+      "true",
+    );
+    await expect(popup.locator("#app")).toHaveAttribute("inert", "");
+    await popup.evaluate(() =>
+      chrome.runtime.sendMessage({
+        version: 1,
+        type: "app:command",
+        action: "lock",
+        params: {},
+      }),
+    );
+    await popup.clock.fastForward(3000);
+    await expect(
+      popup.getByRole("heading", { name: "Welcome back" }),
+    ).toBeVisible();
+    await expect(popup.locator("#app")).not.toHaveAttribute("inert");
+    await expect(popup.getByLabel("Password", { exact: true })).toHaveValue("");
+    await popup
+      .getByLabel("Password", { exact: true })
+      .fill("disposable-reliability-password");
+    await popup.getByRole("button", { name: "Unlock", exact: true }).click();
+    await popup.getByRole("button", { name: "Settings", exact: true }).click();
+    await popup.evaluate(() =>
+      (window as unknown as { releaseReveal: () => void }).releaseReveal(),
+    );
+    await expect(
+      popup.getByRole("heading", { name: "Settings", exact: true }),
+    ).toBeVisible();
+    await expect(popup.locator(".secret")).toHaveCount(0);
+    await expect(popup.getByRole("status")).toHaveText("");
+  } finally {
+    await close();
+  }
+});
+
+test("worker restarts preserve unfinished forms and popup reopening preserves the unlock session", async () => {
+  await popup.clock.install();
+  const close = await localReliabilityWallet();
+  try {
+    const account = await popup.locator(".address-value").textContent();
+    const before = await popup.evaluate(() =>
+      chrome.runtime.sendMessage({ version: 1, type: "app:get-status" }),
+    );
+    await popup.getByRole("button", { name: "Send", exact: true }).click();
+    await popup
+      .getByLabel("Recipient address")
+      .fill("0x0000000000000000000000000000000000001234");
+    await popup.getByLabel("Amount", { exact: true }).fill("0.25");
+    const cdp = await context.newCDPSession(popup);
+    await cdp.send("ServiceWorker.enable");
+    await cdp.send("ServiceWorker.stopAllWorkers");
+    await expect
+      .poll(
+        async () =>
+          (
+            await popup.evaluate(() =>
+              chrome.runtime.sendMessage({
+                version: 1,
+                type: "app:get-status",
+              }),
+            )
+          ).instanceId,
+      )
+      .not.toBe(before.instanceId);
+    await popup.clock.fastForward(3000);
+    await expect(popup.getByLabel("Recipient address")).toHaveValue(
+      "0x0000000000000000000000000000000000001234",
+    );
+    await expect(popup.getByLabel("Amount", { exact: true })).toHaveValue(
+      "0.25",
+    );
+    await cdp.detach();
+    await popup.close();
+    popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await expect(popup.locator(".address-value")).toHaveText(account as string);
+    await expect(popup.locator(".balance")).toHaveText("1 ETH");
+    await popup.clock.install();
+    await popup.getByRole("button", { name: "Send", exact: true }).click();
+    await popup.getByLabel("Amount", { exact: true }).fill("0.75");
+    await popup.evaluate(() =>
+      chrome.runtime.sendMessage({
+        version: 1,
+        type: "app:command",
+        action: "addAccount",
+        params: { name: "Second", walletId: "wallet-1" },
+      }),
+    );
+    await popup.clock.fastForward(3000);
+    await expect(popup.locator(".account-name")).toHaveText("Second");
+    await expect(popup.getByLabel("Amount", { exact: true })).toHaveCount(0);
+    await popup.getByRole("button", { name: "Send", exact: true }).click();
+    await popup.evaluate(() =>
+      chrome.runtime.sendMessage({
+        version: 1,
+        type: "app:command",
+        action: "selectNetwork",
+        params: { id: 84532 },
+      }),
+    );
+    await popup.clock.fastForward(3000);
+    await expect(popup.getByRole("combobox", { name: "Network" })).toHaveValue(
+      "84532",
+    );
+    await expect(popup.getByLabel("Amount", { exact: true })).toHaveCount(0);
+  } finally {
+    await close();
+  }
+});
+
+test("balance retries recover and a lost send reply leads to Activity without a duplicate submission", async () => {
+  await popup.clock.install();
+  const close = await localReliabilityWallet();
+  try {
+    const from = (await popup.locator(".address-value").textContent()) as Hex;
+    const activity: Activity = {
+      hash: `0x${"ab".repeat(32)}`,
+      from,
+      to: "0x0000000000000000000000000000000000001234",
+      chainId: 31337,
+      value: "250000000000000000",
+      data: "0x",
+      nonce: 0,
+      gas: "21000",
+      createdAt: Date.now() - 1_260_000,
+      status: "unseen",
+    };
+    const row = presentActivity(activity, {
+      id: 31337,
+      name: "Local",
+      symbol: "ETH",
+      rpc: "http://127.0.0.1",
+    });
+    await popup.evaluate((row) => {
+      const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+      let balances = 0;
+      let approvals = 0;
+      let refreshes = 0;
+      Object.defineProperty(chrome.runtime, "sendMessage", {
+        value: (
+          request: { action?: string },
+          callback: (value: unknown) => void,
+        ) => {
+          if (request.action === "balance" && ++balances === 1) {
+            callback({ ok: false, error: "RPC unavailable or timed out." });
+            return;
+          }
+          if (request.action === "prepareSend") {
+            callback({
+              ok: true,
+              value: {
+                id: "lost-response-review",
+                from: row.from,
+                to: row.to,
+                amount: "0.25",
+                fee: "0.0001",
+                total: "0.2501",
+                network: "Local",
+                chainId: 31337,
+                symbol: "ETH",
+                data: "0x",
+                expiresAt: Date.now() + 120000,
+                replacement: false,
+                interpretation: {
+                  kind: "native",
+                  summary: "Native transfer",
+                  warning: "",
+                },
+                simulation: { status: "passed", message: "Execution checked" },
+              },
+            });
+            return;
+          }
+          if (request.action === "approveSend") {
+            document.documentElement.dataset.approvals = String(++approvals);
+            callback(undefined); // The channel closed after submission; never assume failure.
+            return;
+          }
+          if (["activity", "refreshActivity"].includes(request.action ?? "")) {
+            if (request.action === "refreshActivity") refreshes += 1;
+            document.documentElement.dataset.activityRefreshes =
+              String(refreshes);
+            callback({
+              ok: true,
+              value: [
+                {
+                  ...row,
+                  ...(refreshes > 1
+                    ? {
+                        status: "confirmed",
+                        display: {
+                          ...row.display,
+                          status: "Confirmed",
+                          tone: "success",
+                          note: "",
+                        },
+                      }
+                    : {}),
+                },
+              ],
+            });
+            return;
+          }
+          return original(request, callback);
+        },
+      });
+    }, row);
+    await popup
+      .getByRole("button", { name: "Refresh balance", exact: true })
+      .click();
+    await expect(popup.locator(".balance")).toHaveText(
+      "Balance unavailable. Refresh to try again.",
+    );
+    await popup
+      .getByRole("button", { name: "Refresh balance", exact: true })
+      .click();
+    await expect(popup.locator(".balance")).toHaveText("1 ETH");
+    await popup.getByRole("button", { name: "Send", exact: true }).click();
+    await popup.getByLabel("Recipient address").fill(activity.to);
+    await popup.getByLabel("Amount", { exact: true }).fill("0.25");
+    await popup
+      .getByRole("button", { name: "Review transaction", exact: true })
+      .click();
+    await popup
+      .getByRole("button", { name: "Confirm and send", exact: true })
+      .click();
+    await expect(popup.getByRole("alert")).toHaveText(
+      "Wallet connection interrupted. Check Activity before sending again.",
+    );
+    await expect(
+      popup.getByRole("button", { name: "Review again before sending" }),
+    ).toBeDisabled();
+    await popup
+      .getByRole("button", { name: "View activity", exact: true })
+      .click();
+    await expect(popup.locator(".activity-status")).toHaveText("Not found");
+    await popup.clock.fastForward(10000);
+    await expect(popup.locator(".activity-status")).toHaveText("Confirmed");
+    await expect(popup.locator("html")).toHaveAttribute("data-approvals", "1");
+    await expect(popup.locator("html")).toHaveAttribute(
+      "data-activity-refreshes",
+      "2",
+    );
+  } finally {
+    await close();
+  }
+});
+
 test("production popup loads, connects, and opens the full view", async () => {
   await expect(
     popup.getByRole("heading", { name: "Ethereum wallet" }),

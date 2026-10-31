@@ -28,15 +28,27 @@ async function rpc<T = View>(
   action: string,
   params: Record<string, unknown> = {},
 ): Promise<T> {
+  const generation = uiGeneration;
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
       { version: 1, type: "app:command", action, params },
       (response: { ok: boolean; value?: T; error?: string } | undefined) => {
-        if (chrome.runtime.lastError || !response?.ok)
+        const disconnected = chrome.runtime.lastError || !response;
+        if (generation !== uiGeneration) {
+          reject(
+            new Error(
+              "Wallet context changed. Try again from the current screen.",
+            ),
+          );
+          return;
+        }
+        if (disconnected || !response?.ok)
           reject(
             new Error(
               response?.error ??
-                "Could not reach the wallet. Reopen the extension and try again.",
+                (["approveSend", "approveDapp"].includes(action)
+                  ? "Wallet connection interrupted. Check Activity before sending again."
+                  : "Could not reach the wallet. Reopen the extension and try again."),
             ),
           );
         else resolve(response.value as T);
@@ -59,18 +71,26 @@ async function attempt(
   status.dataset.state = "loading";
   try {
     await action();
+    if (generation !== uiGeneration) return;
     if (status.textContent === "Working…") status.textContent = "";
     status.dataset.state = "ready";
   } catch (error) {
+    if (generation !== uiGeneration) return;
     if (feedback === status && currentScreen !== screenId) return;
     feedback.textContent =
       error instanceof Error ? error.message : "Something went wrong.";
     status.dataset.state = "error";
   } finally {
-    busy = false;
-    app.inert = false;
-    if (generation !== uiGeneration) home();
+    if (generation === uiGeneration) {
+      busy = false;
+      app.inert = false;
+    }
   }
+}
+function interrupt() {
+  uiGeneration += 1;
+  busy = false;
+  app.inert = false;
 }
 function screen(title?: string) {
   screenId += 1;
@@ -878,11 +898,13 @@ function review(preview: Preview, edit?: () => void) {
         );
         back();
       } catch (cause) {
+        if (screenId !== reviewScreen) return;
         error.textContent =
           cause instanceof Error
             ? cause.message
             : "Could not send. Check Activity before trying again.";
         confirm.textContent = "Review again before sending";
+        recovery.hidden = false;
       }
     }, false),
   );
@@ -900,7 +922,13 @@ function review(preview: Preview, edit?: () => void) {
     ),
     confirm,
   );
-  app.append(error, actions);
+  const recovery = button(
+    "View activity",
+    () => attempt(() => activity(true), false),
+    true,
+  );
+  recovery.hidden = true;
+  app.append(error, actions, recovery);
 }
 function send(token?: Token, draft: Record<string, string> = {}) {
   const network = state.networks.items.find(
@@ -1508,39 +1536,65 @@ document.getElementById("open-tab")?.addEventListener("click", () => {
 });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && showingSecret) home();
+  if (!document.hidden) void syncState();
 });
-// Only replace a screen when lock state changes; preserve forms and focus otherwise.
-setInterval(() => {
-  if (busy || !state || document.hidden) return;
-  void rpc<View>("state")
-    .then((next) => {
-      if (
-        next.vault.state !== state.vault.state ||
-        JSON.stringify(next.approvals.map((item) => item.id)) !==
-          JSON.stringify(state.approvals.map((item) => item.id))
-      ) {
-        state = next;
-        home();
-      }
-    })
-    .catch(() => {});
-}, 3_000);
+// Check locks even during a slow request. Ordinary polling preserves form inputs;
+// context changes invalidate old callbacks before rendering the new screen.
+let syncing = false;
+async function syncState() {
+  if (syncing || !state || document.hidden) return;
+  syncing = true;
+  const previous = state;
+  try {
+    const next = await rpc<View>("state");
+    if (state !== previous) return;
+    const context = (view: View) =>
+      JSON.stringify([
+        view.vault.state,
+        view.vault.accounts[view.vault.selected]?.address,
+        view.networks.items.find(
+          (network) => network.id === view.networks.selected,
+        ),
+      ]);
+    if (context(next) !== context(previous)) {
+      interrupt();
+      state = next;
+      home();
+    } else if (
+      !busy &&
+      JSON.stringify(next.approvals.map((item) => item.id)) !==
+        JSON.stringify(previous.approvals.map((item) => item.id))
+    ) {
+      state = next;
+      home();
+    }
+  } catch {
+    // A temporary worker restart must not erase an unfinished form.
+  } finally {
+    syncing = false;
+  }
+}
+setInterval(() => void syncState(), 3_000);
 void attempt(async () => {
   state = await rpc("state");
   home();
 });
 
 document.getElementById("quick-lock")?.addEventListener("click", () => {
-  uiGeneration += 1;
-  clearTimeout(secretTimer);
-  showingSecret = false;
-  app.replaceChildren(el("p", "Locking…"));
+  interrupt();
+  const generation = uiGeneration;
+  screen();
+  brand.hidden = false;
+  accountControl.hidden = true;
+  accountAddress.hidden = true;
+  app.append(el("p", "Locking…"));
   void rpc<View>("lock")
     .then((next) => {
       state = next;
       home();
     })
     .catch(() => {
+      if (generation !== uiGeneration) return;
       status.textContent =
         "Could not confirm locking. Close the browser to end the session.";
     });
