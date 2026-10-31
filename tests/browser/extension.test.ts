@@ -553,6 +553,12 @@ test("balance always shows every digit at one size", async () => {
   }
 });
 
+test("popup applies its own font", async () => {
+  expect(
+    await popup.evaluate(() => getComputedStyle(document.body).fontFamily),
+  ).toBe("system-ui, sans-serif");
+});
+
 test("production popup loads, connects, and opens the full view", async () => {
   await expect(
     popup.getByRole("heading", { name: "Ethereum wallet" }),

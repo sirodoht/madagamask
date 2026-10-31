@@ -184,6 +184,12 @@ test("site discovers the wallet through EIP-6963", async () => {
 
 test("wallet screen stays inside the popup frame at its narrowest width", async () => {
   await wallet.importWallet();
+  assert.equal(
+    await wallet.driver.executeScript(
+      "return getComputedStyle(document.body).fontFamily",
+    ),
+    "system-ui, sans-serif",
+  );
   for (const width of [396, 320]) {
     const escaped = await wallet.driver.executeScript<string[]>(
       `const shell = document.querySelector(".shell");

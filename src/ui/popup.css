@@ -13,7 +13,7 @@
   --space-3: 1.5rem;
   --space-4: 2rem;
   --radius: 1rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-system: system-ui, sans-serif;
   font-size: 16px;
   color: var(--color-text);
   background: var(--color-bg);
@@ -25,6 +25,8 @@
 body {
   margin: 0;
   min-width: 320px;
+  /* Chrome styles extension bodies, so a font set on :root never applies. */
+  font-family: var(--font-system);
 }
 html [hidden] {
   display: none;
@@ -327,7 +329,7 @@ small {
 }
 .address-feedback {
   color: var(--color-accent);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-system);
 }
 .show-feedback .address-value {
   visibility: hidden;
