@@ -144,6 +144,7 @@ Unsupported today and needed by real dapps. Old or deprecated methods, such as `
 - [ ] Batch calls.
 - [ ] `wallet_watchAsset`.
 - [ ] WalletConnect.
+- [ ] Require typing `UNLIMITED` to approve an unlimited token allowance.
 
 ## RPC settings
 
