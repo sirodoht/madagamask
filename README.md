@@ -2,7 +2,7 @@
 
 A small, MIT-licensed Ethereum wallet extension with a vanilla TypeScript interface. The testnet alpha includes encrypted recovery/account management, native and ERC20 transfers, site permissions, reviewed signatures, and local phishing protection.
 
-**Use disposable test wallets only. This alpha is unaudited. Never import keys used for real assets.** Signing is restricted to Sepolia (11155111), Base Sepolia (84532), and local chains (31337 and 1337). Ethereum mainnet is view-only. A custom RPC claiming a permitted chain ID is still trusted infrastructure; chain IDs do not prove a network is safe.
+**This alpha is unaudited. Use small amounts you can afford to lose, and never import keys that hold significant assets.** Signing is restricted to Ethereum (1), Sepolia (11155111), Base Sepolia (84532), and local chains (31337 and 1337). Mainnet signing exists for small-amount testing and is not approved for real-fund custody. A custom RPC claiming a permitted chain ID is still trusted infrastructure; chain IDs do not prove a network is safe.
 
 See [PROGRESS.md](PROGRESS.md) for implementation status, [VERIFICATION.md](VERIFICATION.md) for measured evidence and gaps, [ROADMAP.md](ROADMAP.md) for acceptance criteria, [SECURITY.md](SECURITY.md) for trust boundaries, and [DESIGN.md](DESIGN.md) for interface rules. Hardware wallets and public release are later milestones.
 

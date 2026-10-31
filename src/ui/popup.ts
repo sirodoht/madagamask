@@ -601,6 +601,11 @@ function approvalCard(title: string, rows: [string, string][]) {
 function approvalNotice(text: string) {
   return el("p", text, "approval-notice");
 }
+function mainnetNotice(chainId: number) {
+  return chainId === 1
+    ? [approvalNotice("Ethereum mainnet uses real ETH. This cannot be undone.")]
+    : [];
+}
 function technicalDetails(item: Approval) {
   const rows: [string, string][] = [["Method", item.method]];
   if (item.method === "personal_sign")
@@ -716,6 +721,11 @@ function approval(item: Approval) {
       ],
     ]),
   );
+  if (
+    item.preview ||
+    ["personal_sign", "eth_signTypedData_v4"].includes(item.method)
+  )
+    app.append(...mainnetNotice(item.chainId));
   if (item.method === "eth_requestAccounts")
     app.append(
       el(
@@ -1145,6 +1155,7 @@ function review(preview: Preview, edit?: () => void) {
   const quantity = `${asset?.amount ?? preview.amount} ${asset?.symbol ?? preview.symbol}`;
   app.append(el("p", quantity, "transfer-amount"));
   app.append(transactionSummary(preview));
+  app.append(...mainnetNotice(preview.chainId));
   if (preview.replacement)
     app.append(
       el(

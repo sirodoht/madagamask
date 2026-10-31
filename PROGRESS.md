@@ -382,3 +382,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Replaced the unlabeled request-parameter array with a collapsed Technical details section containing labeled fields and per-field Copy buttons. Message requests show Method, Message bytes, and Signing address; typed requests show the address and formatted JSON instead of an escaped JSON string. Transaction and network requests retain their complete structured payloads.
 - Technical values preserve their lines and scroll horizontally inside their field. Focusable fields support keyboard scrolling; copy feedback stays on the individual button. The surrounding approval screen does not gain horizontal overflow.
 - The Chrome signing-review regression passes at 320px, including disclosure keyboard access, horizontal scrolling, copied reduced-permit contents, personal-sign values, and signature recovery. Inspected expanded technical-details screenshots. The existing Firefox site connect/sign/reject/send/lock flow also passes. Lint/typecheck and both package checks pass; Chrome and Firefox distributions and archives rebuilt.
+
+### Mainnet signing for small-amount testing
+
+- Enabled chain 1 for wallet sends, site transactions, and message and typed-data signatures, at the owner's direction. Added a real-ETH notice to mainnet review and signing screens. Other chains stay rejected.
+- Added tests against a local chain reporting ID 1, covering EIP-1559 chain binding, consumed reviews, site approval, and the review notice, without reaching Ethereum. The default mainnet RPC answered read, fee, and estimate calls and rejected a malformed raw transaction.
+- This is not an audit approval. No real mainnet transaction has been sent from automated tests, and `SECURITY.md` lists what remains before holding significant funds.

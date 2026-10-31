@@ -13,8 +13,9 @@ const site: Site = {
   tabId: 1,
   documentId: "doc-1",
 };
-async function setup() {
+async function setup(networks?: unknown) {
   const map = new Map<string, unknown>();
+  if (networks) map.set("networks", networks);
   const wallet = new Wallet({
     get: async (key) => map.get(key),
     set: async (key, value) => {
@@ -63,9 +64,55 @@ test("sites get no accounts until approval; grants are origin scoped", async () 
   assert.deepEqual(await wallet.dapps.accounts(site.origin), []);
 });
 
-test("mainnet rejects native sends and all supported signature methods", async () => {
+test("mainnet queues message and typed-data signatures for review", async () => {
   const wallet = await setup();
   await wallet.run("selectNetwork", { id: 1 });
+  const connect = await pending(wallet, { method: "eth_requestAccounts" });
+  await wallet.run("approveDapp", { id: connect.approval.id });
+  const [account] = (await connect.result()) as string[];
+  assert.ok(account);
+  const message = await pending(wallet, {
+    method: "personal_sign",
+    params: ["0x6869", account],
+  });
+  assert.equal(message.approval.chainId, 1);
+  const signature = (await Promise.all([
+    message.result(),
+    wallet.run("approveDapp", { id: message.approval.id }),
+  ]).then(([value]) => value)) as `0x${string}`;
+  assert.equal(
+    await recoverMessageAddress({ message: { raw: "0x6869" }, signature }),
+    account,
+  );
+  const typed = await pending(wallet, {
+    method: "eth_signTypedData_v4",
+    params: [
+      account,
+      {
+        domain: { name: "Review fixture", chainId: 1 },
+        types: { Message: [{ name: "value", type: "uint256" }] },
+        primaryType: "Message",
+        message: { value: 1 },
+      },
+    ],
+  });
+  assert.equal(typed.approval.chainId, 1);
+  await wallet.run("rejectDapp", { id: typed.approval.id });
+});
+
+test("unsupported networks reject native sends and all supported signature methods", async () => {
+  const wallet = await setup({
+    version: 1,
+    items: [
+      {
+        id: 137,
+        name: "Polygon",
+        rpc: "https://polygon.example",
+        symbol: "POL",
+      },
+    ],
+    selected: 137,
+  });
   const connect = await pending(wallet, { method: "eth_requestAccounts" });
   await wallet.run("approveDapp", { id: connect.approval.id });
   const [account] = (await connect.result()) as string[];
@@ -77,7 +124,7 @@ test("mainnet rejects native sends and all supported signature methods", async (
   for (const request of [
     {
       method: "eth_sendTransaction",
-      params: [{ from: account, to: account, value: "0x1", chainId: "0x1" }],
+      params: [{ from: account, to: account, value: "0x1", chainId: "0x89" }],
     },
     { method: "personal_sign", params: ["0x6869", account] },
     {
@@ -85,7 +132,7 @@ test("mainnet rejects native sends and all supported signature methods", async (
       params: [
         account,
         {
-          domain: { name: "Review fixture", chainId: 1 },
+          domain: { name: "Review fixture", chainId: 137 },
           types: { Message: [{ name: "value", type: "uint256" }] },
           primaryType: "Message",
           message: { value: 1 },
@@ -95,7 +142,7 @@ test("mainnet rejects native sends and all supported signature methods", async (
   ]) {
     await assert.rejects(
       wallet.dapps.request(request, site),
-      /Signing is (disabled|limited)/,
+      /Signing is (disabled|not supported)/,
     );
     assert.deepEqual(wallet.dapps.approvals(), []);
   }

@@ -21,7 +21,8 @@ test("RPC URLs reject plaintext remote hosts, embedded credentials, and non-HTTP
     "javascript:alert(1)",
   ])
     assert.throws(() => endpoint(value));
-  assert.equal(SIGNING_CHAINS.has(1), false);
+  assert.equal(SIGNING_CHAINS.has(1), true);
+  assert.equal(SIGNING_CHAINS.has(137), false);
 });
 test("custom networks verify chain ID and preserve selected-network balance context", async () => {
   const server = createServer(async (request, response) => {

@@ -185,7 +185,7 @@ export class Transactions {
     const network = await this.networks.selected();
     if (!SIGNING_CHAINS.has(network.id))
       throw new UserError(
-        "Signing is disabled on this network. This alpha supports Sepolia, Base Sepolia, and local chains 31337/1337 only.",
+        "Signing is disabled on this network. This alpha supports Ethereum, Sepolia, Base Sepolia, and local chains 31337/1337 only.",
       );
     const account = this.vault.account();
     const epoch = this.vault.generation();

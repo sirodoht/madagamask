@@ -279,7 +279,7 @@ export class Dapps {
         if (!SIGNING_CHAINS.has(network.id))
           throw new ProviderError(
             4901,
-            "Signing is limited to supported test networks.",
+            "Signing is not supported on this network.",
           );
       } else if (method === "eth_signTypedData_v4") {
         if (params.length !== 2 || address(params[0]) !== account.address)
@@ -288,7 +288,7 @@ export class Dapps {
         if (!SIGNING_CHAINS.has(network.id))
           throw new ProviderError(
             4901,
-            "Signing is limited to supported test networks.",
+            "Signing is not supported on this network.",
           );
       } else if (method === "wallet_switchEthereumChain") {
         if (params.length !== 1)
