@@ -809,6 +809,29 @@ main h1 {
   font-family: monospace;
   font-size: 0.75rem;
 }
+.technical-fields {
+  margin-top: 12px;
+  color: var(--color-text);
+}
+.technical-fields dt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.technical-fields dd {
+  font-family: monospace;
+  font-size: 0.75rem;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+.technical-copy {
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
 .approval-notice {
   margin: 0;
   padding: 12px;

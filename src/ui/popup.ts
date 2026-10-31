@@ -601,6 +601,70 @@ function approvalCard(title: string, rows: [string, string][]) {
 function approvalNotice(text: string) {
   return el("p", text, "approval-notice");
 }
+function technicalDetails(item: Approval) {
+  const rows: [string, string][] = [["Method", item.method]];
+  if (item.method === "personal_sign")
+    rows.push(
+      ["Message bytes", String(item.params[0])],
+      ["Signing address", String(item.params[1])],
+    );
+  else if (item.method === "eth_signTypedData_v4")
+    rows.push(
+      ["Signing address", String(item.params[0])],
+      [
+        "Typed data",
+        JSON.stringify(
+          typeof item.params[1] === "string"
+            ? JSON.parse(item.params[1])
+            : item.params[1],
+          null,
+          2,
+        ),
+      ],
+    );
+  else if (item.params.length)
+    rows.push([
+      item.method === "eth_sendTransaction" ? "Transaction" : "Network request",
+      JSON.stringify(item.params[0], null, 2),
+    ]);
+  const details = el("details", undefined, "transfer-details");
+  details.append(el("summary", "Technical details"));
+  const card = el("div", undefined, "approval-card technical-fields");
+  const list = el("dl");
+  for (const [label, value] of rows) {
+    const row = el("div");
+    const heading = el("dt", label);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const copy = button(
+      "Copy",
+      async () => {
+        clearTimeout(timer);
+        try {
+          await navigator.clipboard.writeText(value);
+          copy.textContent = "Copied";
+        } catch {
+          copy.textContent = "Try again";
+        }
+        if (copy.isConnected)
+          timer = setTimeout(() => {
+            copy.textContent = "Copy";
+          }, 2000);
+      },
+      true,
+    );
+    copy.classList.add("technical-copy");
+    copy.setAttribute("aria-label", `Copy ${label.toLowerCase()}`);
+    copy.setAttribute("aria-live", "polite");
+    heading.append(copy);
+    const content = el("dd", value);
+    content.tabIndex = 0;
+    row.append(heading, content);
+    list.append(row);
+  }
+  card.append(list);
+  details.append(card);
+  return details;
+}
 function approval(item: Approval) {
   const permission =
     item.method === "eth_signTypedData_v4"
@@ -897,14 +961,8 @@ function approval(item: Approval) {
         ),
       );
   }
-  const details = el("details", undefined, "transfer-details");
-  details.append(
-    el("summary", "Exact request details"),
-    el("p", item.method),
-    el("pre", JSON.stringify(item.params, null, 2), "secret"),
-  );
   app.append(
-    details,
+    technicalDetails(item),
     el(
       "small",
       `Phishing list: ${item.protection.status}. A site not listed can still be malicious.`,

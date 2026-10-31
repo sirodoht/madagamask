@@ -2590,10 +2590,51 @@ test("signing reviews expose exact permissions, unreadable messages, and unknown
     await expect(
       popup.getByText("Unlimited spending", { exact: true }),
     ).toHaveCount(0);
-    await popup.getByText("Exact request details", { exact: true }).click();
-    await expect(popup.locator("pre.secret")).toContainText(
-      '\\"value\\":\\"7\\"',
+    const technical = popup
+      .locator("details")
+      .filter({ has: popup.getByText("Technical details", { exact: true }) });
+    await expect(technical).not.toHaveAttribute("open", "");
+    await technical.locator("summary").focus();
+    await technical.locator("summary").press("Enter");
+    const typedValue = technical.locator("dd").last();
+    expect(
+      JSON.parse((await typedValue.textContent()) ?? "").message.value,
+    ).toBe("7");
+    expect(
+      await typedValue.evaluate((node) => node.scrollWidth > node.clientWidth),
+    ).toBe(true);
+    await typedValue.focus();
+    await typedValue.press("ArrowRight");
+    await expect
+      .poll(() => typedValue.evaluate((node) => node.scrollLeft))
+      .toBeGreaterThan(0);
+    await expect
+      .poll(() => popup.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(320);
+    await popup.evaluate(() =>
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (text: string) => {
+            (window as unknown as { copiedText: string }).copiedText = text;
+          },
+        },
+      }),
     );
+    await technical
+      .getByRole("button", { name: "Copy typed data", exact: true })
+      .click();
+    await expect(
+      technical.getByRole("button", { name: "Copy typed data", exact: true }),
+    ).toHaveText("Copied");
+    const copied = await popup.evaluate(
+      () => (window as unknown as { copiedText: string }).copiedText,
+    );
+    expect(JSON.parse(copied).message.value).toBe("7");
+    await typedValue.evaluate((node) => {
+      node.scrollLeft = 0;
+    });
+    await technical.screenshot({ path: "artifacts/technical-typed-data.png" });
     await popup
       .getByRole("button", { name: "Sign spending permission", exact: true })
       .click();
@@ -2642,6 +2683,12 @@ test("signing reviews expose exact permissions, unreadable messages, and unknown
         exact: true,
       }),
     ).toBeVisible();
+    await popup.getByText("Technical details", { exact: true }).click();
+    const values = popup.locator(".technical-fields dd");
+    await expect(values).toHaveText(["personal_sign", "0xff00", owner]);
+    await popup
+      .locator(".technical-fields")
+      .screenshot({ path: "artifacts/technical-message.png" });
     await popup.screenshot({
       path: "artifacts/signing-unreadable.png",
       fullPage: true,

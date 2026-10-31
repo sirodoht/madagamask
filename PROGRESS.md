@@ -376,3 +376,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - CI now installs a checksum-verified Firefox 159.0 and runs the lifecycle harness plus eight Selenium flows: create, restore, lock, local-chain send, site connect/sign/reject/send/lock, approval-window dismissal, EIP-6963 discovery, and popup bounds. Playwright cannot load Firefox add-ons, so Chrome keeps Playwright and Firefox uses `selenium-webdriver` with geckodriver 0.37.1. Geckodriver needs `--allow-system-access` to reach extension pages.
 - The flows found no Firefox-specific wallet defects. Chain and site checks ran against a local chain and a local page only.
 - Remaining Firefox evidence: signed installation, real restart and update of a permanently installed add-on, public testnets, and third-party dapps. Signing requires a Mozilla add-on account.
+
+### Readable technical signing details — 2026-10-31
+
+- Replaced the unlabeled request-parameter array with a collapsed Technical details section containing labeled fields and per-field Copy buttons. Message requests show Method, Message bytes, and Signing address; typed requests show the address and formatted JSON instead of an escaped JSON string. Transaction and network requests retain their complete structured payloads.
+- Technical values preserve their lines and scroll horizontally inside their field. Focusable fields support keyboard scrolling; copy feedback stays on the individual button. The surrounding approval screen does not gain horizontal overflow.
+- The Chrome signing-review regression passes at 320px, including disclosure keyboard access, horizontal scrolling, copied reduced-permit contents, personal-sign values, and signature recovery. Inspected expanded technical-details screenshots. The existing Firefox site connect/sign/reject/send/lock flow also passes. Lint/typecheck and both package checks pass; Chrome and Firefox distributions and archives rebuilt.
