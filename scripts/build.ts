@@ -75,7 +75,7 @@ for (const browser of ["chrome", "firefox"] as const) {
   if (browser === "firefox") {
     await writeFile(
       join(outdir, "VALIDATION.txt"),
-      "Firefox package contents checked. Firefox runtime and UI are untested.\n",
+      "Firefox package is unsigned. Runtime and UI checks use temporary add-on installs.\n",
     );
   }
   const result = await build({

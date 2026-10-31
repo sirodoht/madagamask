@@ -4,7 +4,7 @@ Build a small, open-source Ethereum and EVM wallet for Chrome and Firefox. The [
 
 Milestones 1–7 are implemented as a testnet alpha candidate. The funded public-testnet transfer required by milestone 4 is still unverified, so the alpha is not fully signed off. See [PROGRESS.md](PROGRESS.md) and [VERIFICATION.md](VERIFICATION.md) for evidence and limits. The agreed stack is TypeScript, vanilla HTML/CSS/DOM, viem, Node.js, npm, and esbuild, with Biome for formatting and linting, Node's built-in runner for core unit tests, and Playwright for browser automation. The project uses MIT and targets the latest stable desktop Chrome and Firefox. See the [technology stack](README.md#technology-stack) for the recorded decisions and the [design guide](DESIGN.md) for interface requirements. Milestones are ordered by dependency, without speculative delivery dates.
 
-Current browser testing focuses on Chrome/Chromium. Build and package Firefox alongside Chrome, checking its manifest and packaged files. Firefox runtime and UI tests, their harness, and Firefox store submission are deferred. The completion criteria below use Chrome for wallet behavior; Firefox packages remain labeled untested until browser testing resumes.
+Chrome runs the full browser suite. Firefox runs its lifecycle checks and core wallet and site flows in CI as a temporary add-on. Signed Firefox installation, store updates, public testnets, and third-party dapps on Firefox remain unverified.
 
 ## 1. Foundation and browser prototype
 

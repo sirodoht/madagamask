@@ -19,7 +19,7 @@ mise exec -- npm run package
 
 Chrome: open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `dist/chrome`. Pin Madagamask to the toolbar. The ZIP in `artifacts` contains the same files; extract it before using Load unpacked. Keep the extension directory in the same location when updating, click Reload in Chrome's extension manager, and unlock again. Back up disposable recovery material before updates. Removing the extension deletes its local data.
 
-Firefox: `artifacts/madagamask-0.1.0-firefox-untested.zip` is an unsigned, packaging-checked development artifact. Its runtime and interface are **untested**, and it is not a normal signed Firefox installation package. Developers can attempt temporary loading through `about:debugging` using `dist/firefox/manifest.json`; do not rely on it for funds or persistent storage.
+Firefox: `artifacts/madagamask-0.1.0-firefox-unsigned.zip` is an unsigned development artifact, not a normal Firefox installation package. CI tests Firefox 159.0 as a temporary add-on, covering the lifecycle and the core wallet and site flows. Signed installation, store updates, public testnets, and third-party dapps are unverified on Firefox. Developers can load it temporarily through `about:debugging` using `dist/firefox/manifest.json`; temporary add-ons are removed when Firefox restarts, so do not rely on it for funds or persistent storage.
 
 Builds include local scripts, licenses, and a compressed phishing snapshot. No executable code is fetched remotely. ZIP files have sorted entries and fixed timestamps; checksums are written to `artifacts/SHA256SUMS`.
 
@@ -67,6 +67,7 @@ Phishing checks use a bundled [PhishDestroy](https://github.com/phishdestroy/des
 
 ```sh
 mise exec -- npm run test:lifecycle:firefox # installed Firefox, isolated temporary profile
+mise exec -- npm run test:firefox # installed Firefox, Selenium, and a local chain
 mise exec -- npm run test:chain
 mise exec -- npx playwright install chromium
 mise exec -- npm run test:browser

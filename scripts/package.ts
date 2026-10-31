@@ -22,7 +22,7 @@ for (const browser of ["chrome", "firefox"]) {
     await chmod(resolve(directory, file), 0o644);
     await utimes(resolve(directory, file), 315532800, 315532800);
   }
-  const name = `madagamask-${version}-${browser}${browser === "firefox" ? "-untested" : ""}.zip`;
+  const name = `madagamask-${version}-${browser}${browser === "firefox" ? "-unsigned" : ""}.zip`;
   const archive = resolve("artifacts", name);
   await rm(archive, { force: true });
   execFileSync("zip", ["-X", "-q", archive, ...files], {

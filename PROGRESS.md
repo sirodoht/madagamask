@@ -17,7 +17,7 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 ## Decisions and limits
 
 - Node 26.13.0 / bundled npm 11.20.0 managed by mise. Exact dependencies and lockfile are committed.
-- Chrome/Chromium behavior is tested; Firefox receives package checks only and must remain labeled untested.
+- Chrome/Chromium behavior is tested. Firefox 159.0 lifecycle and core flows run in CI as a temporary add-on; its package stays labeled unsigned.
 - No real assets or existing user wallet data are used. Generated test keys are disposable.
 - Public-testnet funding, service availability, and external dapp compatibility require observable evidence; they will not be inferred from local tests.
 - The alpha has not received independent security review.
@@ -370,3 +370,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Moved the vault and public wallet state from `storage.local` to extension-origin IndexedDB on Chrome and Firefox, closing SR-1. Added `unlimitedStorage`, and Firefox requests persistent storage. Earlier local installs start empty; no release shipped, so there is no migration.
 - The Firefox lifecycle harness now runs a hostile content script against an unlocked wallet and restarts the browser with kept storage. Validated locally on Firefox 159.0.
+
+### Firefox pipeline
+
+- CI now installs a checksum-verified Firefox 159.0 and runs the lifecycle harness plus eight Selenium flows: create, restore, lock, local-chain send, site connect/sign/reject/send/lock, approval-window dismissal, EIP-6963 discovery, and popup bounds. Playwright cannot load Firefox add-ons, so Chrome keeps Playwright and Firefox uses `selenium-webdriver` with geckodriver 0.37.1. Geckodriver needs `--allow-system-access` to reach extension pages.
+- The flows found no Firefox-specific wallet defects. Chain and site checks ran against a local chain and a local page only.
+- Remaining Firefox evidence: signed installation, real restart and update of a permanently installed add-on, public testnets, and third-party dapps. Signing requires a Mozilla add-on account.

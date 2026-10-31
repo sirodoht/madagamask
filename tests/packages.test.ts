@@ -39,7 +39,7 @@ for (const browser of ["chrome", "firefox"]) {
       assets.push(...manifest.background.scripts);
       assert.match(
         await readFile(`${directory}/VALIDATION.txt`, "utf8"),
-        /untested/,
+        /unsigned/,
       );
     }
     const html = await readFile(`${directory}/popup.html`, "utf8");
