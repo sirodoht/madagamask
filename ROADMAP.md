@@ -135,6 +135,16 @@ Chrome runs the full browser suite. Firefox runs its lifecycle checks and core w
 
 **Done when:** the release artifacts pass the declared checks, required review findings are resolved, and users have clear installation, backup, recovery, and support documentation.
 
+## Dapp support backlog
+
+Unsupported today and needed by real dapps. Old or deprecated methods, such as `eth_sign` and legacy typed signing, stay out.
+
+- [ ] Contract creation.
+- [ ] Site-supplied nonce, gas, and fee fields.
+- [ ] Batch calls.
+- [ ] `wallet_watchAsset`.
+- [ ] WalletConnect.
+
 ## Working rules
 
 - Complete small, reviewable changes and commit each completed change.
