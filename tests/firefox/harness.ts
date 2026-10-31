@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -14,6 +15,15 @@ import {
 import firefox from "selenium-webdriver/firefox.js";
 
 const GECKODRIVER_VERSION = "0.37.1";
+// SHA-256 of the extracted binary, from release archives matching GitHub's digests.
+const GECKODRIVER_SHA256: Record<string, string> = {
+  "darwin-arm64":
+    "5d82307edc8549124bd4e7b6f275e1228e0a530e5abbfb294be3f310486561a4",
+  "linux-arm64":
+    "aed949129c68c12ff52db53eab4a260bc865b63080c050342fb8dc6dd6e684ee",
+  "linux-x64":
+    "f831b7e61454804e8a307edd951bf8a5f373efe3f718e75454a6485a51f6e39f",
+};
 const ADDON_ID = "madagamask@madagamask.local";
 const TIMEOUT = 15_000;
 
@@ -227,8 +237,21 @@ export async function chainCall(
   return ((await response.json()) as { result: unknown }).result;
 }
 
-export async function launch() {
+async function verifiedDriver() {
+  const platform = `${process.platform}-${process.arch}`;
+  const expected = GECKODRIVER_SHA256[platform];
+  if (!expected) throw new Error(`No geckodriver checksum for ${platform}`);
   const binary = await download(GECKODRIVER_VERSION);
+  const actual = createHash("sha256")
+    .update(await readFile(binary))
+    .digest("hex");
+  if (actual !== expected)
+    throw new Error(`Geckodriver checksum mismatch at ${binary}: ${actual}`);
+  return binary;
+}
+
+export async function launch() {
+  const binary = await verifiedDriver();
   const uuid = randomUUID();
   const options = new firefox.Options()
     .addArguments("-headless")
