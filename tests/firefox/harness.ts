@@ -295,6 +295,14 @@ export async function launch() {
       new firefox.ServiceBuilder(binary).addArguments("--allow-system-access"),
     )
     .build()) as firefox.Driver;
-  await driver.installAddon(resolve("dist/firefox"), true);
+  // Selenium's published types do not include this method yet.
+  await (
+    driver as firefox.Driver & {
+      installWebExtension(
+        extension: string,
+        options: { permanent: boolean },
+      ): Promise<unknown>;
+    }
+  ).installWebExtension(resolve("dist/firefox"), { permanent: false });
   return new Wallet(driver, uuid);
 }
