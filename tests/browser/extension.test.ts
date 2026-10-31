@@ -308,6 +308,41 @@ test("website provider discovers, connects, signs, and hides accounts after lock
     await site.waitForFunction(
       () => !!(window as unknown as { ethereum?: Provider }).ethereum,
     );
+    // Inspect the actual extension content-script world, not just the page.
+    const cdp = await context.newCDPSession(site);
+    const executionContexts: number[] = [];
+    cdp.on("Runtime.executionContextCreated", ({ context }) => {
+      executionContexts.push(context.id);
+    });
+    await cdp.send("Runtime.enable");
+    let checkedContentWorld = false;
+    for (const contextId of executionContexts) {
+      const identity = await cdp.send("Runtime.evaluate", {
+        contextId,
+        expression: "globalThis.chrome?.runtime?.id",
+        returnByValue: true,
+      });
+      if (identity.result.value !== extensionId) continue;
+      const access = await cdp.send("Runtime.evaluate", {
+        contextId,
+        expression:
+          "(async () => { try { await chrome.storage.session.get('unlockSession'); return true; } catch { return false; } })()",
+        awaitPromise: true,
+        returnByValue: true,
+      });
+      expect(access.result.value).toBe(false);
+      checkedContentWorld = true;
+    }
+    expect(checkedContentWorld).toBe(true);
+    await cdp.detach();
+    expect(
+      await popup.evaluate(async () => {
+        const session = (await chrome.storage.session.get("unlockSession"))
+          .unlockSession as { key: string } | undefined;
+        const disk = JSON.stringify(await chrome.storage.local.get(null));
+        return !!session?.key && !disk.includes(session.key);
+      }),
+    ).toBe(true);
     expect(
       await site.evaluate(() =>
         (window as unknown as { ethereum: Provider }).ethereum.request({

@@ -217,7 +217,10 @@ try {
   await cdp.send("ServiceWorker.enable", {}, page.sessionId);
   await cdp.send("ServiceWorker.stopAllWorkers", {}, page.sessionId);
   await delay(500);
-  assert.equal((await command(page.sessionId, "state")).vault.state, "unlocked");
+  assert.equal(
+    (await command(page.sessionId, "state")).vault.state,
+    "unlocked",
+  );
   assert.notEqual(
     (await instance(page.sessionId)).instanceId,
     first.instanceId,

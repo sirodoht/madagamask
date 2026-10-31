@@ -25,7 +25,7 @@ Builds include local scripts, licenses, and a compressed phishing snapshot. No e
 
 ## Use a disposable wallet
 
-Create a wallet, set a password of at least 12 characters, and write down the recovery phrase offline. Confirm the phrase before signing or sending. Settings lets you reauthenticate to reveal the phrase, add derived accounts, rename accounts, import/export a private-key account, change the password, and choose a 1–30 minute auto-lock interval. Lock is always available in the header.
+Create a wallet, set a password of at least 12 characters, and write down the recovery phrase offline. Confirm the phrase before signing or sending. Settings lets you reauthenticate to reveal the phrase, add derived accounts, rename accounts, import/export a private-key account, change the password, and choose a 1–30 minute auto-lock interval (30 minutes by default). Lock is always available in the header.
 
 Recovery accepts checksum-valid English BIP39 phrases and derives `m/44'/60'/0'/0/index`. BIP39 passphrases and alternate paths are unsupported. Restore additional derived accounts by adding them again in order. Imported private-key accounts need separate backups; the recovery phrase does not restore them. Password recovery is impossible without recovery material. Reset requires the current password and the literal text `DELETE`.
 
@@ -59,13 +59,14 @@ Simulation is an `eth_call` execution check against current RPC state. It cannot
 
 The `storage` permission stores an encrypted vault plus public network/token/activity/permission records. HTTPS host access enables custom RPCs and provider injection; loopback HTTP enables local test chains. The isolated bridge cannot access decrypted keys. There are no telemetry, advertising, pricing, or portfolio services.
 
-Built-in RPC requests go to Thirdweb for Sepolia, Base for Base Sepolia, and reth.rs for mainnet. Custom networks use their configured endpoint. These providers receive IP addresses, queried accounts, and request contents, including transaction execution checks. Native/token balances refresh on demand. Pending activity is checked at most once per 30 seconds, up to 20 recent entries per pass with a 20-second soft budget and 10-second per-request timeouts. Visible extension pages poll public wallet state every three seconds. Chrome writes only a heartbeat timestamp to session storage every two seconds; it does not persist an unlocked session.
+Built-in RPC requests go to Thirdweb for Sepolia, Base for Base Sepolia, and reth.rs for mainnet. Custom networks use their configured endpoint. These providers receive IP addresses, queried accounts, and request contents, including transaction execution checks. Native balances load when the wallet opens or the selected account/network changes; manual refresh remains available. Token balances refresh on demand. Pending activity is checked at most once per 30 seconds, up to 20 recent entries per pass with a 20-second soft budget and 10-second per-request timeouts. Visible extension pages poll public wallet state every three seconds. Chrome also writes a heartbeat timestamp every two seconds. Both browsers retain a temporary vault-unlock key, salt, last activity, and expiry in `storage.session`, which is browser-session memory restricted to trusted extension contexts. The password and decrypted vault payload are not stored there. Background restarts restore the session only before its inactivity deadline; passive state/balance polling does not extend that deadline. Lock, expiry, browser restart, and extension reload/update clear the session. The `alarms` permission schedules expiry while the background is asleep; delayed alarms never bypass deadline checks before wallet access. This expands the temporary key lifetime beyond one background process. The disk vault remains password-encrypted. Legacy five-minute settings migrate to the new 30-minute default; other previous values are preserved, and Settings can explicitly select five minutes again.
 
 Phishing checks use a bundled [PhishDestroy](https://github.com/phishdestroy/destroylist) domain list locally. Settings can fetch a replacement list from GitHub; visited domains are not sent. A list older than 24 hours is labeled stale, and known entries still block. Failed updates retain the old list. Missing data is explicitly unavailable. This feed can miss threats and produce false positives: the current snapshot blocks `metamask.github.io`, including its test dapp. There is no bypass or automatic safety guarantee.
 
 ## Validation and development
 
 ```sh
+mise exec -- npm run test:lifecycle:firefox # installed Firefox, isolated temporary profile
 mise exec -- npm run test:chain
 mise exec -- npx playwright install chromium
 mise exec -- npm run test:browser

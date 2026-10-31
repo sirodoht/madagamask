@@ -217,3 +217,60 @@ test("shorter explicit auto-lock settings survive restoration", async () => {
   await expired.restoreSession();
   assert.equal((await expired.view()).state, "locked");
 });
+
+test("legacy default migrates to 30 minutes while other legacy preferences remain", async () => {
+  for (const minutes of [5, 2]) {
+    const { disk, session, make } = setup();
+    const vault = make();
+    await vault.create(password, mnemonic);
+    const saved = session.data.get(SESSION_KEY) as { key: string };
+    const encrypted = disk.data.get("vault") as {
+      iv: string;
+      ciphertext: string;
+    };
+    const key = await crypto.subtle.importKey(
+      "raw",
+      Buffer.from(saved.key, "base64"),
+      "AES-GCM",
+      false,
+      ["encrypt", "decrypt"],
+    );
+    const additionalData = new TextEncoder().encode("madagamask:vault:1");
+    const data = JSON.parse(
+      new TextDecoder().decode(
+        await crypto.subtle.decrypt(
+          {
+            name: "AES-GCM",
+            iv: Buffer.from(encrypted.iv, "base64"),
+            additionalData,
+          },
+          key,
+          Buffer.from(encrypted.ciphertext, "base64"),
+        ),
+      ),
+    );
+    delete data.autoLockPolicy;
+    data.autoLockMinutes = minutes;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, additionalData },
+      key,
+      new TextEncoder().encode(JSON.stringify(data)),
+    );
+    disk.data.set("vault", {
+      ...encrypted,
+      iv: Buffer.from(iv).toString("base64"),
+      ciphertext: Buffer.from(ciphertext).toString("base64"),
+    });
+    vault.lock();
+    await vault.flushSession();
+    await vault.unlock(password);
+    assert.equal(
+      (await vault.view()).autoLockMinutes,
+      minutes === 5 ? 30 : minutes,
+    );
+    const resumed = make();
+    await resumed.restoreSession();
+    assert.equal((await resumed.view()).state, "unlocked");
+  }
+});
