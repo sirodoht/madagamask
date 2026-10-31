@@ -216,7 +216,7 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
       ),
     ).toBe(true);
     await expect(
-      popup.getByRole("button", { name: "Export imported key" }),
+      popup.getByRole("button", { name: "Back up selected private key" }),
     ).toBeVisible();
     if (width === 380)
       await popup.screenshot({
@@ -228,7 +228,7 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
         "Connected sites",
         "Add or edit network",
         "Back up recovery phrase",
-        "Export imported key",
+        "Back up selected private key",
         "Add account",
         "Import private key",
         "Rename account",
@@ -242,7 +242,10 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
           popup.getByRole("heading", { name: "Settings", exact: true }),
         ).toBeVisible();
       }
-      for (const label of ["Back up recovery phrase", "Export imported key"]) {
+      for (const label of [
+        "Back up recovery phrase",
+        "Back up selected private key",
+      ]) {
         await popup.getByRole("button", { name: label, exact: true }).click();
         await popup
           .getByLabel("Password", { exact: true })
@@ -275,23 +278,40 @@ test("account menu supports keyboard selection and dismissal", async () => {
       password: "disposable-account-menu-password",
       phrase: "test test test test test test test test test test test junk",
     });
+    await command("addAccount", {
+      name: "Imported key",
+      privateKey: `0x${"22".repeat(32)}`,
+    });
     await command("addAccount", { name: "Second account" });
     await command("selectAccount", { index: 0 });
   });
   await popup.reload();
   const selector = popup.getByRole("button", { name: "Account", exact: true });
   const address = await popup.locator(".address-copy").textContent();
+  await expect(selector.locator(".account-source")).toHaveText(
+    "Recovery phrase",
+  );
   await selector.focus();
   await popup.keyboard.press("ArrowDown");
   await expect(
     popup.getByRole("menuitemradio", { name: "Account 1" }),
   ).toBeFocused();
+  await expect(
+    popup
+      .getByRole("group", { name: "Recovery phrase accounts", exact: true })
+      .getByRole("menuitemradio"),
+  ).toHaveCount(2);
+  await expect(
+    popup
+      .getByRole("group", { name: "Imported accounts", exact: true })
+      .getByRole("menuitemradio"),
+  ).toHaveCount(1);
   await popup.keyboard.press("ArrowDown");
   await expect(
     popup.getByRole("menuitemradio", { name: "Second account" }),
   ).toBeFocused();
   await popup.keyboard.press("Enter");
-  await expect(selector).toHaveText("Second account");
+  await expect(selector.locator(".account-name")).toHaveText("Second account");
   await expect(selector).toBeFocused();
   await expect(popup.locator(".address-copy")).not.toHaveText(address ?? "");
   await selector.click();
@@ -302,11 +322,41 @@ test("account menu supports keyboard selection and dismissal", async () => {
   await expect(selector).toHaveAttribute("aria-expanded", "false");
   await expect(selector).toBeFocused();
   await selector.click();
-  await popup.locator(".balance").click();
+  await popup.locator("body").click({ position: { x: 4, y: 4 } });
   await expect(popup.getByRole("menu")).toBeHidden();
   await selector.click();
   await popup.getByRole("menuitemradio", { name: "Account 1" }).click();
   await expect(popup.locator(".address-copy")).toHaveText(address ?? "");
+  await selector.click();
+  await popup.keyboard.press("End");
+  await expect(
+    popup.getByRole("menuitemradio", { name: "Imported key", exact: true }),
+  ).toBeFocused();
+  await popup.keyboard.press("Enter");
+  await expect(selector.locator(".account-source")).toHaveText("Imported key");
+  await selector.click();
+  await expect(
+    popup.getByRole("menuitemradio", { name: "Imported key", exact: true }),
+  ).toBeFocused();
+  await popup.screenshot({
+    path: "artifacts/account-backup-groups.png",
+    fullPage: true,
+  });
+  await popup.keyboard.press("Escape");
+  await popup.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(popup.locator(".settings-account")).toHaveText(
+    "Imported key · Backup: this account’s private key",
+  );
+  await popup
+    .getByRole("button", { name: "Back up selected private key", exact: true })
+    .click();
+  await popup
+    .getByLabel("Password", { exact: true })
+    .fill("disposable-account-menu-password");
+  await popup
+    .getByRole("button", { name: "Reveal backup", exact: true })
+    .click();
+  await expect(popup.locator(".secret")).toHaveText(`0x${"22".repeat(32)}`);
 });
 
 test("create, back up, lock, and restore a wallet through the production UI", async () => {

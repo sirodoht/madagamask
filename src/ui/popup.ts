@@ -144,6 +144,14 @@ function backup(index?: number) {
         ...(index !== undefined ? { index } : {}),
       });
       screen("Keep this private");
+      app.append(
+        el(
+          "p",
+          index === undefined
+            ? "Recovery phrase · restores all recovery phrase accounts"
+            : `${state.vault.accounts[index]?.name} · private key for this account only`,
+        ),
+      );
       showingSecret = true;
       app.append(
         el(
@@ -172,6 +180,16 @@ function backup(index?: number) {
     },
     settings,
   );
+  app
+    .querySelector("h1")
+    ?.after(
+      el(
+        "p",
+        index === undefined
+          ? "For all recovery phrase accounts"
+          : `For ${state.vault.accounts[index]?.name} only`,
+      ),
+    );
 }
 async function connections() {
   const grants = await rpc<Record<string, string[]>>("connections");
@@ -301,6 +319,15 @@ function approval(item: Approval) {
 }
 function settings() {
   screen("Settings");
+  const account = state.vault.accounts[state.vault.selected];
+  if (account)
+    app.append(
+      el(
+        "p",
+        `${account.name} · Backup: ${account.imported ? "this account’s private key" : "recovery phrase"}`,
+        "settings-account",
+      ),
+    );
   const actions = el("div", undefined, "action-grid settings-grid");
   app.append(actions);
   actions.append(
@@ -345,14 +372,18 @@ function settings() {
   actions.append(button("Back up recovery phrase", () => backup(), true));
   if (state.vault.accounts[state.vault.selected]?.imported)
     actions.append(
-      button("Export imported key", () => backup(state.vault.selected), true),
+      button(
+        "Back up selected private key",
+        () => backup(state.vault.selected),
+        true,
+      ),
     );
   actions.append(
     button(
       "Add account",
       () =>
         fields(
-          "Add account",
+          "Add recovery phrase account",
           [{ key: "name", label: "Account name" }],
           "Add account",
           (values) => command("addAccount", values),
@@ -746,34 +777,72 @@ function home() {
       account?.name ?? "Account",
       () => {
         menu.togglePopover();
+        if (menu.matches(":popover-open")) selectedOption?.focus();
       },
       true,
     );
+    const selectedLabel = el("span", undefined, "account-label");
+    selectedLabel.id = "selected-account-label";
+    selectedLabel.append(
+      el("span", account?.name ?? "Account", "account-name"),
+      el(
+        "span",
+        account?.imported ? "Imported key" : "Recovery phrase",
+        "account-source",
+      ),
+    );
+    select.replaceChildren(selectedLabel);
     select.classList.add("account-toggle");
     select.setAttribute("aria-label", "Account");
+    select.setAttribute("aria-describedby", selectedLabel.id);
     select.setAttribute("aria-haspopup", "menu");
     select.setAttribute("aria-controls", menu.id);
     select.setAttribute("aria-expanded", "false");
     const options: HTMLButtonElement[] = [];
-    vault.accounts.forEach((account, index) => {
-      const option = button(
-        account.name,
-        () => {
-          menu.hidePopover();
-          void attempt(async () => {
-            await command("selectAccount", { index });
-            accountControl.querySelector("button")?.focus();
-          });
-        },
-        true,
+    let selectedOption: HTMLButtonElement | undefined;
+    for (const imported of [false, true]) {
+      const members = vault.accounts
+        .map((account, index) => ({ account, index }))
+        .filter(({ account }) => account.imported === imported);
+      if (!members.length) continue;
+      const title = imported ? "Imported accounts" : "Recovery phrase accounts";
+      const group = el("div", undefined, "account-group");
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-label", title);
+      const heading = el("div", undefined, "account-group-heading");
+      heading.append(
+        el("h2", title),
+        el(
+          "p",
+          imported
+            ? "Backup: each private key separately"
+            : "Backup: one phrase for this group",
+        ),
       );
-      option.className = "account-option";
-      option.setAttribute("role", "menuitemradio");
-      option.setAttribute("aria-checked", String(index === vault.selected));
-      option.tabIndex = -1;
-      options.push(option);
-      menu.append(option);
-    });
+      group.append(heading);
+      for (const { account, index } of members) {
+        const option = button(
+          account.name,
+          () => {
+            menu.hidePopover();
+            void attempt(async () => {
+              await command("selectAccount", { index });
+              accountControl.querySelector("button")?.focus();
+            });
+          },
+          true,
+        );
+        option.className = "account-option";
+        option.setAttribute("role", "menuitemradio");
+        option.setAttribute("aria-label", option.textContent ?? "");
+        option.setAttribute("aria-checked", String(index === vault.selected));
+        option.tabIndex = -1;
+        if (index === vault.selected) selectedOption = option;
+        options.push(option);
+        group.append(option);
+      }
+      menu.append(group);
+    }
     menu.addEventListener("beforetoggle", (event) => {
       const open = (event as ToggleEvent).newState === "open";
       select.setAttribute("aria-expanded", String(open));
@@ -781,16 +850,14 @@ function home() {
       const bounds = select.getBoundingClientRect();
       menu.style.left = `${bounds.left}px`;
       menu.style.top = `${bounds.bottom + 4}px`;
-      menu.style.width = `${bounds.width}px`;
-      menu.style.maxHeight = `${Math.max(44, Math.min(240, innerHeight - bounds.bottom - 20))}px`;
-    });
-    menu.addEventListener("toggle", () => {
-      if (menu.matches(":popover-open")) options[vault.selected]?.focus();
+      menu.style.width = `${Math.min(360, innerWidth - bounds.left - 16)}px`;
+      menu.style.maxHeight = `${Math.max(44, Math.min(360, innerHeight - bounds.bottom - 20))}px`;
     });
     select.addEventListener("keydown", (event) => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         menu.showPopover();
+        selectedOption?.focus();
       }
     });
     menu.addEventListener("keydown", (event) => {
