@@ -773,16 +773,100 @@ test("production UI imports, sends native assets, imports a token, and sends tok
       fullPage: true,
     });
     await popup.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(popup.locator(".account-name")).toHaveText("Account 1");
+    await expect(popup.locator(".network-badge")).toHaveText(network.name);
+    await expect(popup.locator(".transfer-balance")).toHaveText(
+      "Available: 10000 ETH",
+    );
+    await popup
+      .getByLabel("Recipient address", { exact: true })
+      .fill("invalid");
+    await popup.getByLabel("Amount", { exact: true }).fill("1");
+    await popup
+      .getByRole("button", { name: "Review transaction", exact: true })
+      .click();
+    await expect(popup.getByRole("alert")).toHaveText(
+      "Enter a valid Ethereum recipient address.",
+    );
     await popup
       .getByLabel("Recipient address", { exact: true })
       .fill("0x0000000000000000000000000000000000001234");
+    await popup.getByLabel("Amount", { exact: true }).fill("0");
+    await popup
+      .getByRole("button", { name: "Review transaction", exact: true })
+      .click();
+    await expect(popup.getByRole("alert")).toHaveText(
+      "Enter an amount greater than zero.",
+    );
+    await popup.getByLabel("Amount", { exact: true }).fill("10001");
+    await popup
+      .getByRole("button", { name: "Review transaction", exact: true })
+      .click();
+    await expect(popup.getByRole("alert")).toContainText(
+      "Insufficient balance",
+    );
+    await expect(popup.getByLabel("Amount", { exact: true })).toHaveValue(
+      "10001",
+    );
     await popup.getByLabel("Amount", { exact: true }).fill("1");
+    await popup.screenshot({ path: "artifacts/send-form.png", fullPage: true });
     await popup
       .getByRole("button", { name: "Review transaction", exact: true })
       .click();
     await expect(
       popup.getByRole("heading", { name: "Review transaction" }),
     ).toBeVisible();
+    await expect(popup.locator(".transfer-amount")).toHaveText("1 ETH");
+    await expect(popup.locator(".transfer-summary")).toContainText(
+      "Maximum network fee",
+    );
+    await expect(popup.locator(".transfer-summary")).toContainText(
+      "Maximum total",
+    );
+    await popup.getByRole("button", { name: "Edit", exact: true }).click();
+    await expect(popup.getByLabel("Amount", { exact: true })).toHaveValue("1");
+    await expect(
+      popup.getByLabel("Recipient address", { exact: true }),
+    ).toHaveValue("0x0000000000000000000000000000000000001234");
+    await popup
+      .getByRole("button", { name: "Review transaction", exact: true })
+      .click();
+    // Invalidate this review as a context change in another extension view would.
+    await expect(
+      popup.getByRole("heading", { name: "Review transaction" }),
+    ).toBeVisible();
+    await popup.evaluate(() =>
+      chrome.runtime.sendMessage({
+        version: 1,
+        type: "app:command",
+        action: "selectNetwork",
+        params: { id: 31337 },
+      }),
+    );
+    await popup.getByRole("button", { name: "Confirm and send" }).click();
+    await expect(popup.getByRole("alert")).toContainText(
+      "expired or was already used",
+    );
+    await expect(
+      popup.getByRole("button", { name: "Review again before sending" }),
+    ).toBeDisabled();
+    await popup.getByRole("button", { name: "Edit", exact: true }).click();
+    await popup
+      .getByRole("button", { name: "Review transaction", exact: true })
+      .click();
+    await expect(
+      popup.getByRole("heading", { name: "Review transaction" }),
+    ).toBeVisible();
+    for (const width of [320, 396]) {
+      await popup.setViewportSize({ width, height: 600 });
+      expect(
+        await popup.evaluate(
+          () =>
+            document.documentElement.scrollWidth <= innerWidth &&
+            document.documentElement.scrollHeight <= innerHeight,
+        ),
+      ).toBe(true);
+    }
     await popup.screenshot({
       path: "artifacts/transaction-review.png",
       fullPage: true,
@@ -849,6 +933,30 @@ test("production UI imports, sends native assets, imports a token, and sends tok
       .fill("0x0000000000000000000000000000000000005678");
     await popup.getByLabel("Token amount", { exact: true }).fill("1.234567");
     await popup.getByRole("button", { name: "Review token transfer" }).click();
+    await expect(popup.locator(".transfer-amount")).toHaveText(
+      "1.234567 MTEST",
+    );
+    await expect(popup.locator(".transfer-recipient dd")).toHaveText(
+      "0x0000000000000000000000000000000000005678",
+    );
+    await expect(popup.locator(".transfer-total dd")).toContainText(
+      "1.234567 MTEST +",
+    );
+    for (const width of [320, 396]) {
+      await popup.setViewportSize({ width, height: 600 });
+      expect(
+        await popup.evaluate(
+          () =>
+            document.documentElement.scrollWidth <= innerWidth &&
+            document.documentElement.scrollHeight <= innerHeight,
+        ),
+      ).toBe(true);
+    }
+    await popup.screenshot({
+      path: "artifacts/token-review.png",
+      fullPage: true,
+    });
+    await popup.getByText("Transaction details", { exact: true }).click();
     await expect(popup.getByText(/1234567 base units/)).toBeVisible();
     await popup.getByRole("button", { name: "Confirm and send" }).click();
     await expect(

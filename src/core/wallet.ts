@@ -121,7 +121,12 @@ export class Wallet {
         return this.tokens.balance(p.address, this.vault.account().address);
       case "prepareTokenSend": {
         const tx = await this.tokens.transfer(p.address, p.to, p.amount);
-        return this.transactions.prepare(tx.to, tx.amount, tx.data);
+        const preview = await this.transactions.prepare(
+          tx.to,
+          tx.amount,
+          tx.data,
+        );
+        return { ...preview, asset: tx.asset };
       }
       case "editDappAllowance":
         await this.dapps.editAllowance(p.id, p.amount);

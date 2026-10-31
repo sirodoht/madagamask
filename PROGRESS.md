@@ -273,3 +273,10 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Increased the popup shell from 380px to 396px, adding roughly two monospace characters of room for the address when a scrollbar is present.
 - Lint and both package checks pass. Firefox 159 confirms the full address occupies one line with the shell constrained to 381px, simulating 15px of scrollbar space. Both distributions and archives rebuilt.
+
+### Compact Send form and transaction review — 2026-10-31
+
+- Native and token sends retain the account/address header, show the selected network and available balance, and use compact recipient/amount fields with inline errors and button-local progress. Editing clears stale errors; Back returns token sends to Tokens.
+- Reviews emphasize the amount, full recipient, maximum network fee, and maximum total. Token reviews receive normalized recipient/amount/contract metadata from the background and show tokens plus native fees instead of leading with 0 ETH. Detailed interpretation, simulation, source, chain ID, and calldata remain expandable; contract and failed-simulation warnings stay visible.
+- Edit cancels the prior draft and preserves entered values. Failed confirmation disables the consumed review; editing creates a fresh one. Submitted/uncertain results keep their status distinction and transaction hash, with a direct View activity action. Navigation during asynchronous preparation discards the resulting draft instead of replacing the new screen.
+- Added early native-funds validation and a readable gas-estimation failure message. All 39 unit tests and nine local-chain tests pass, including insufficient funds, a reverting contract, exact token metadata, ambiguous submission, and duplicate approval protection. The expanded Chrome transfer flow covers address/amount errors, preserved inputs, invalidated-review recovery, successful native/token sends, and 320/396px review layouts. Inspected Firefox Send and Chrome review screens; lint, typecheck, and both package checks pass. Both distributions and archives rebuilt.

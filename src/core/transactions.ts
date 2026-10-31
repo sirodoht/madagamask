@@ -47,6 +47,12 @@ export type Activity = {
   error?: string;
 };
 export type Preview = {
+  asset?: {
+    recipient: Address;
+    amount: string;
+    symbol: string;
+    contract: Address;
+  };
   interpretation: ReturnType<typeof interpret>;
   simulation: { status: "passed" | "unavailable"; message: string };
   id: string;
@@ -189,6 +195,11 @@ export class Transactions {
     const quantity = amount(value, data !== "0x" || !!replacement);
     await verifyChain(network);
     const rpc = client(network);
+    const balance = await rpc.getBalance({ address: account.address });
+    if (balance <= quantity)
+      throw new UserError(
+        "Insufficient balance for the amount and network fee.",
+      );
     const unresolved = this.activity.some(
       (item) =>
         item.chainId === network.id &&
@@ -212,12 +223,14 @@ export class Transactions {
       )
       .map((item) => item.nonce + 1);
     const nonce = replacement?.nonce ?? Math.max(pendingNonce, ...reserved);
-    const estimate = await rpc.estimateGas({
-      account,
-      to,
-      value: quantity,
-      data,
-    });
+    let estimate: bigint;
+    try {
+      estimate = await rpc.estimateGas({ account, to, value: quantity, data });
+    } catch {
+      throw new UserError(
+        "Could not estimate the network fee. Check the recipient and amount, including your token balance, or try again when the network is available.",
+      );
+    }
     const gas = (estimate * 120n + 99n) / 100n;
     const block = await rpc.getBlock();
     const draft: Draft = {

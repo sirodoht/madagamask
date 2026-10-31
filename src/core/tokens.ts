@@ -159,13 +159,21 @@ export class Tokens {
   }
   async transfer(value: unknown, to: unknown, amount: unknown) {
     const token = await this.get(value);
+    const recipient = address(to);
+    const quantity = tokenAmount(amount, token.decimals);
     return {
+      asset: {
+        recipient,
+        amount: formatUnits(quantity, token.decimals),
+        symbol: token.symbol,
+        contract: token.address,
+      },
       to: token.address,
       amount: "0",
       data: encodeFunctionData({
         abi: erc20Abi,
         functionName: "transfer",
-        args: [address(to), tokenAmount(amount, token.decimals)],
+        args: [recipient, quantity],
       }),
     };
   }

@@ -108,6 +108,7 @@ test("insufficient funds and changed account invalidate sends", async () => {
       to: "0x0000000000000000000000000000000000000001",
       amount: "999999999",
     }),
+    /Insufficient balance/,
   );
   const preview = (await wallet.run("prepareSend", {
     to: "0x0000000000000000000000000000000000000001",
@@ -174,6 +175,10 @@ test("import a token, read exact balance, transfer it, and decode approval inten
     pollingInterval: 50,
   });
   assert.ok(receipt.contractAddress);
+  await assert.rejects(
+    wallet.run("prepareSend", { to: receipt.contractAddress, amount: "1" }),
+    /Could not estimate the network fee/,
+  );
   const imported = (await wallet.run("importToken", {
     address: receipt.contractAddress,
   })) as { decimals: number; symbol: string };
@@ -190,6 +195,13 @@ test("import a token, read exact balance, transfer it, and decode approval inten
     amount: "1.234567",
   })) as Preview;
   assert.equal(preview.interpretation.kind, "token-transfer");
+  assert.equal(preview.asset?.recipient, to);
+  assert.equal(preview.asset?.amount, "1.234567");
+  assert.equal(preview.asset?.symbol, "MTEST");
+  assert.equal(
+    preview.asset?.contract.toLowerCase(),
+    receipt.contractAddress.toLowerCase(),
+  );
   assert.equal(preview.simulation.status, "passed");
   const result = (await wallet.run("approveSend", {
     id: preview.id,

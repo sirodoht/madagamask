@@ -432,6 +432,102 @@ main h1 {
   overflow-wrap: anywhere;
 }
 
+.transfer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.network-badge {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.transfer-balance {
+  min-height: 24px;
+}
+.transfer-balance .balance-spinner {
+  width: 16px;
+  height: 16px;
+}
+.transfer-amount {
+  font-size: 2rem;
+  font-weight: 550;
+  line-height: 1.2;
+  color: var(--color-text);
+  text-align: center;
+}
+.transfer-summary {
+  margin: 0;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  font-size: 0.8125rem;
+}
+.transfer-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+}
+.transfer-summary dt {
+  color: var(--color-muted);
+}
+.transfer-total dt {
+  flex-shrink: 0;
+}
+.transfer-total dd span {
+  display: block;
+}
+.transfer-summary dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.transfer-summary .transfer-recipient {
+  display: block;
+  padding-top: 0;
+}
+.transfer-recipient dd {
+  margin-top: 6px;
+  text-align: left;
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+.transfer-summary .transfer-total {
+  border-top: 1px solid var(--color-border);
+  padding-bottom: 0;
+  font-weight: 600;
+}
+.transfer-note,
+.transfer-details p {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.transfer-details {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+.transfer-details summary {
+  cursor: pointer;
+}
+.transfer-details p {
+  margin-top: 8px;
+}
+.transfer-error {
+  color: var(--color-error);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.transfer-error:empty {
+  display: none;
+}
+
 .wallet-group {
   padding: 8px;
   border: 1px solid var(--color-border);

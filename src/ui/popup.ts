@@ -719,85 +719,245 @@ function settings() {
   );
   back();
 }
-function review(preview: Preview) {
-  screen("Review transaction");
-  const lines = [
-    ["Network", `${preview.network} (chain ${preview.chainId})`],
-    ["From", preview.from],
-    ["To", preview.to],
-    ["Amount", `${preview.amount} ${preview.symbol}`],
-    ["Maximum fee", `${preview.fee} ${preview.symbol}`],
-    ["Maximum total", `${preview.total} ${preview.symbol}`],
-  ];
-  for (const [label, value] of lines) app.append(el("p", `${label}: ${value}`));
-  app.append(
-    el("p", preview.interpretation.summary),
-    el("p", preview.interpretation.warning),
-    el("p", preview.simulation.message),
+function transferHeading(title: string, network: string) {
+  screen();
+  status.textContent = "";
+  accountHeader();
+  const heading = el("div", undefined, "transfer-heading");
+  heading.append(el("h1", title), el("span", network, "network-badge"));
+  app.append(heading);
+}
+function transferError() {
+  const error = el("p", "", "transfer-error");
+  error.setAttribute("role", "alert");
+  return error;
+}
+function review(preview: Preview, edit?: () => void) {
+  transferHeading("Review transaction", preview.network);
+  const reviewScreen = screenId;
+  const asset = preview.asset;
+  const quantity = `${asset?.amount ?? preview.amount} ${asset?.symbol ?? preview.symbol}`;
+  app.append(el("p", quantity, "transfer-amount"));
+  const summary = el("dl", undefined, "transfer-summary");
+  const row = (label: string, value: string, className = "") => {
+    const item = el("div", undefined, className);
+    item.append(el("dt", label), el("dd", value));
+    summary.append(item);
+  };
+  row("Recipient", asset?.recipient ?? preview.to, "transfer-recipient");
+  row("Maximum network fee", `${preview.fee} ${preview.symbol}`);
+  row(
+    "Maximum total",
+    asset
+      ? `${quantity} + ${preview.fee} ${preview.symbol}`
+      : `${preview.total} ${preview.symbol}`,
+    "transfer-total",
   );
+  if (asset) {
+    const total = summary.querySelector(".transfer-total dd") as HTMLElement;
+    total.replaceChildren(
+      el("span", quantity),
+      el("span", ` + ${preview.fee} ${preview.symbol}`),
+    );
+  }
+  app.append(summary);
   if (preview.replacement)
     app.append(
       el(
         "p",
-        "This replaces a pending transaction. Speed-up or cancellation is not guaranteed.",
+        "Replaces a pending transaction. Speed-up or cancellation is not guaranteed.",
+        "transfer-note",
       ),
     );
-  if (preview.data !== "0x") {
-    app.append(el("p", "Contract interaction: effects may be unknown."));
-    const details = el("details");
-    details.append(
-      el("summary", "Transaction data"),
-      el("pre", preview.data, "secret"),
+  if (preview.data !== "0x" || preview.simulation.status !== "passed")
+    app.append(
+      el(
+        "p",
+        preview.simulation.status !== "passed"
+          ? preview.simulation.message
+          : preview.interpretation.warning,
+        "transfer-note",
+      ),
     );
-    app.append(details);
-  }
-  app.append(
-    button("Confirm and send", () =>
-      attempt(async () => {
+  const details = el("details", undefined, "transfer-details");
+  details.append(
+    el("summary", "Transaction details"),
+    el("p", `From: ${preview.from}`, "address"),
+    el("p", `Network: ${preview.network} (chain ${preview.chainId})`),
+    ...(asset ? [el("p", `Token contract: ${asset.contract}`, "address")] : []),
+    el("p", preview.interpretation.summary),
+    el("p", preview.interpretation.warning),
+    el("p", preview.simulation.message),
+  );
+  if (preview.data !== "0x") details.append(el("pre", preview.data, "secret"));
+  app.append(details);
+  const error = transferError();
+  const confirm = button("Confirm and send", () =>
+    attempt(async () => {
+      error.textContent = "";
+      confirm.disabled = true;
+      confirm.textContent = "Sending…";
+      try {
         const tx = await rpc<Activity>("approveSend", { id: preview.id });
-        screen(
+        if (screenId !== reviewScreen) return;
+        transferHeading(
           tx.status === "pending"
             ? "Transaction submitted"
             : "Check transaction status",
+          preview.network,
         );
         app.append(
+          el("p", quantity, "transfer-amount"),
+          el("p", tx.error ?? "Pending confirmation.", "transfer-note"),
+        );
+        const hash = el("details", undefined, "transfer-details");
+        hash.append(
+          el("summary", "Transaction hash"),
           el("p", tx.hash, "address"),
-          el(
-            "p",
-            tx.error ??
-              "Submitted does not mean confirmed. Check Activity for progress.",
+        );
+        app.append(
+          hash,
+          button(
+            "View activity",
+            () => attempt(() => activity(true), false),
+            true,
           ),
         );
         back();
-      }),
-    ),
+      } catch (cause) {
+        error.textContent =
+          cause instanceof Error
+            ? cause.message
+            : "Could not send. Check Activity before trying again.";
+        confirm.textContent = "Review again before sending";
+      }
+    }, false),
+  );
+  const actions = el("div", undefined, "action-grid");
+  actions.append(
     button(
-      "Reject",
+      edit ? "Edit" : "Reject",
       () =>
         attempt(async () => {
           await rpc("cancelSend", { id: preview.id });
-          home();
-        }),
+          if (edit) edit();
+          else home();
+        }, false),
       true,
     ),
+    confirm,
   );
+  app.append(error, actions);
 }
-function send() {
-  fields(
-    "Send test assets",
+function send(token?: Token, draft: Record<string, string> = {}) {
+  const network = state.networks.items.find(
+    (item) => item.id === state.networks.selected,
+  );
+  if (!network) return;
+  const symbol = token?.symbol ?? network.symbol;
+  transferHeading(`Send ${symbol}`, network.name);
+  const balance = el("small", "", "transfer-balance");
+  const spinner = el("span", undefined, "balance-spinner");
+  spinner.setAttribute("role", "img");
+  spinner.setAttribute("aria-label", "Loading available balance");
+  balance.append(spinner);
+  app.append(balance);
+  const currentScreen = screenId;
+  const available = token
+    ? rpc<{ balance: string; symbol: string }>("tokenBalance", {
+        address: token.address,
+      })
+    : rpc<{ amount: string; symbol: string }>("balance").then((result) => ({
+        balance: result.amount,
+        symbol: result.symbol,
+      }));
+  void available
+    .then((result) => {
+      if (screenId === currentScreen)
+        balance.textContent = `Available: ${result.balance} ${result.symbol}`;
+    })
+    .catch(() => {
+      if (screenId === currentScreen)
+        balance.textContent = "Balance unavailable";
+    });
+  const error = transferError();
+  const sendForm = form(
     [
-      { key: "to", label: "Recipient address" },
+      { key: "to", label: "Recipient address", value: draft.to ?? "" },
       {
         key: "amount",
-        label: "Amount",
-        help: "Use a decimal amount. Network fees are shown before confirmation.",
+        label: token ? "Token amount" : "Amount",
+        value: draft.amount ?? "",
       },
     ],
-    "Review transaction",
-    async (values) => {
-      review(await rpc<Preview>("prepareSend", values));
-    },
+    token ? "Review token transfer" : "Review transaction",
+    (values) =>
+      attempt(async () => {
+        error.textContent = "";
+        const submit = sendForm.querySelector(
+          'button[type="submit"]',
+        ) as HTMLButtonElement;
+        const label = submit.textContent;
+        submit.textContent = "Checking…";
+        const clean = {
+          to: (values.to ?? "").trim(),
+          amount: (values.amount ?? "").trim(),
+        };
+        try {
+          if (!/^0x[0-9a-fA-F]{40}$/.test(clean.to))
+            throw new Error("Enter a valid Ethereum recipient address.");
+          const decimals = token?.decimals ?? 18;
+          if (
+            !/^(0|[1-9]\d*)(\.\d+)?$/.test(clean.amount) ||
+            (clean.amount.split(".")[1]?.length ?? 0) > decimals
+          )
+            throw new Error(
+              `Enter a decimal amount with at most ${decimals} decimal places.`,
+            );
+          if (!/[1-9]/.test(clean.amount))
+            throw new Error("Enter an amount greater than zero.");
+          const preview = await rpc<Preview>(
+            token ? "prepareTokenSend" : "prepareSend",
+            { ...clean, ...(token ? { address: token.address } : {}) },
+          );
+          if (screenId !== currentScreen) {
+            await rpc("cancelSend", { id: preview.id });
+            return;
+          }
+          review(preview, () => send(token, clean));
+        } catch (cause) {
+          error.textContent =
+            cause instanceof Error
+              ? cause.message
+              : "Could not prepare the transaction. Try again.";
+        } finally {
+          submit.textContent = label;
+        }
+      }, false),
   );
+  const recipient = sendForm.querySelector('[name="to"]') as HTMLInputElement;
+  sendForm.addEventListener("input", () => {
+    error.textContent = "";
+  });
+  recipient.placeholder = "0x…";
+  recipient.classList.add("address");
+  const amount = sendForm.querySelector('[name="amount"]') as HTMLInputElement;
+  amount.inputMode = "decimal";
+  amount.placeholder = "0.00";
+  const submit = sendForm.querySelector(
+    'button[type="submit"]',
+  ) as HTMLButtonElement;
+  const actions = el("div", undefined, "action-grid");
+  actions.append(
+    button(
+      "Back",
+      () => (token ? attempt(() => tokens(), false) : home()),
+      true,
+    ),
+    submit,
+  );
+  sendForm.append(error, actions);
+  app.append(sendForm);
 }
 async function activity(refresh = false) {
   const items = await rpc<Activity[]>(refresh ? "refreshActivity" : "activity");
@@ -874,27 +1034,7 @@ async function tokens() {
       ),
     );
     card.append(
-      button(`Send ${token.symbol}`, () =>
-        fields(
-          `Send ${token.symbol}`,
-          [
-            { key: "to", label: "Recipient address" },
-            {
-              key: "amount",
-              label: "Token amount",
-              help: `${token.decimals} decimal places.`,
-            },
-          ],
-          "Review token transfer",
-          async (values) =>
-            review(
-              await rpc<Preview>("prepareTokenSend", {
-                ...values,
-                address: token.address,
-              }),
-            ),
-        ),
-      ),
+      button(`Send ${token.symbol}`, () => send(token)),
       button(
         "Remove token",
         () =>
