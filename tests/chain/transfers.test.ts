@@ -459,3 +459,47 @@ test("dapp dismissal during persistence prevents broadcasting a signed transacti
     before,
   );
 });
+
+test("native review expiry is enforced after RPC checks and after persistence", async (t) => {
+  for (const stage of ["rpc", "persistence"]) {
+    await t.test(stage, async (t) => {
+      let now = Date.now();
+      let expiresAt = 0;
+      let armed = false;
+      let broadcasts = 0;
+      const { wallet } = await freshWallet(network.rpc, () => {
+        if (armed && stage === "persistence") now = expiresAt;
+        return false;
+      });
+      const preview = (await wallet.run("prepareSend", {
+        to: "0x0000000000000000000000000000000000001234",
+        amount: "0.001",
+      })) as Preview;
+      expiresAt = preview.expiresAt;
+      const fetch = globalThis.fetch;
+      t.mock.method(Date, "now", () => now);
+      t.mock.method(
+        globalThis,
+        "fetch",
+        async (...args: Parameters<typeof fetch>) => {
+          const request = JSON.parse(String(args[1]?.body));
+          if (request.method === "eth_sendRawTransaction") broadcasts += 1;
+          const response = await fetch(...args);
+          if (
+            armed &&
+            stage === "rpc" &&
+            request.method === "eth_getTransactionCount"
+          )
+            now = expiresAt;
+          return response;
+        },
+      );
+      armed = true;
+      await assert.rejects(
+        wallet.run("approveSend", { id: preview.id }),
+        /expired/,
+      );
+      assert.equal(broadcasts, 0, "expired approval must never broadcast");
+    });
+  }
+});

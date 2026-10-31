@@ -336,7 +336,7 @@ export class Transactions {
     const generation = this.generation;
     const draft = this.drafts.get(id);
     this.drafts.delete(id);
-    if (!draft || draft.public.expiresAt < Date.now())
+    if (!draft || draft.public.expiresAt <= Date.now())
       throw new UserError(
         "This review expired or was already used. Review the transaction again.",
       );
@@ -347,6 +347,21 @@ export class Transactions {
       draft.revision !== this.networks.revision
     )
       throw new UserError("Account or network changed. Review again.");
+    const assertCurrent = () => {
+      this.vault.assertUnlocked(draft.epoch);
+      if (draft.public.expiresAt <= Date.now())
+        throw new UserError(
+          "This review expired. Review the transaction again.",
+        );
+      if (
+        generation !== this.generation ||
+        draft.revision !== this.networks.revision
+      )
+        throw new UserError(
+          "Wallet context changed. Review the transaction again.",
+        );
+      assertRequestActive();
+    };
     await verifyChain(draft.network);
     const rpc = client(draft.network);
     const currentNonce = await rpc.getTransactionCount({
@@ -375,7 +390,7 @@ export class Transactions {
       gas: draft.gas,
       data: draft.public.data,
     };
-    assertRequestActive();
+    assertCurrent();
     const raw = await account.signTransaction(
       draft.maxFee !== undefined
         ? {
@@ -386,10 +401,7 @@ export class Transactions {
           }
         : { ...base, type: "legacy", gasPrice: draft.gasPrice ?? 0n },
     );
-    this.vault.assertUnlocked(draft.epoch);
-    if (generation !== this.generation)
-      throw new UserError("Wallet context changed before signing completed.");
-    assertRequestActive();
+    assertCurrent();
     const hash = keccak256(raw);
     let entry: Activity = {
       hash,
@@ -412,12 +424,7 @@ export class Transactions {
     };
     // Persist the known hash before broadcast. A crash cannot make us forget an attempted send.
     await this.save(entry);
-    this.vault.assertUnlocked(draft.epoch);
-    if (generation !== this.generation)
-      throw new UserError(
-        "Wallet context changed before submission. Check activity.",
-      );
-    assertRequestActive();
+    assertCurrent();
     try {
       const returned = await rpc.sendRawTransaction({
         serializedTransaction: raw,
