@@ -188,6 +188,9 @@ select {
   color: var(--color-text);
   background: var(--color-surface);
 }
+select {
+  cursor: pointer;
+}
 textarea {
   min-height: 6rem;
   resize: vertical;

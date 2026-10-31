@@ -238,3 +238,7 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - The account header button shows Switch account on hover or keyboard focus, restoring the account name otherwise. The label overlays the existing name so button dimensions stay unchanged. On the account list it shows Back to account, matching that screen’s return action. Accessible descriptions include the account name and action.
 - Lint/typecheck, both package checks, and two Chrome wallet flows pass, including hover restoration, keyboard focus, unchanged button bounds, and account selection. Verified actual pointer hover in Firefox 159 and inspected the result. Both distributions and archives rebuilt.
+
+### Network dropdown cursor — 2026-10-31
+
+- Added a pointer cursor to the Network dropdown. Lint and both package checks pass; both browser distributions and archives rebuilt.
