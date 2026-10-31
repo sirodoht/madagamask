@@ -103,3 +103,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Combined the separate alpha badge and warning into one short notice: “Testnet alpha · Use test keys only.” Reduced shell padding, logo size, heading size, and the gap before the wallet controls; removed the large extra top padding in tab views.
 - Lint and both package checks pass. Three targeted Chrome browser checks pass, covering onboarding, narrow/enlarged-text layouts, and native/token/dapp transaction screens. Inspected Chrome and isolated Firefox 159 screenshots; the Firefox wallet heading starts about 103 CSS pixels from the top. Both browser distributions and ZIPs rebuilt.
 - Firefox remains on Manifest V3; its session lifecycle behavior is unchanged, as requested.
+
+### Account-first wallet home — 2026-10-31
+
+- Moved the account dropdown to the top left and the open-tab control to the top right, alongside Lock. The full address below the account row copies on click. Removed the alpha notice, redundant home heading, bottom address/Copy button, and home backup prompt; recovery backup remains available in Settings and the existing signing requirement is unchanged.
+- Balance loads automatically on opening the wallet and changing account/network. Refresh remains available; duplicate in-flight refreshes are suppressed and results remain bound to their original screen/account/network.
+- Lint, typecheck, both package checks, and four targeted Chrome browser flows pass. Existing local-chain coverage now verifies automatic balance loading, full-address copying, and no overflow at 320×600 and 380×600. Backup/restore through Settings, transfers, and enlarged-text navigation pass. Isolated Firefox 159 renders the home in about 438 CSS pixels of height. Both distributions and archives rebuilt; no session lifecycle changes.

@@ -8,6 +8,10 @@ import { button, el, type Field, form } from "./dom.ts";
 type View = Awaited<ReturnType<Wallet["view"]>>;
 const app = document.getElementById("app") as HTMLElement;
 const status = document.getElementById("status") as HTMLElement;
+const brand = document.querySelector(".brand") as HTMLElement;
+const accountControl = document.getElementById(
+  "account-control",
+) as HTMLElement;
 let state: View;
 let secretTimer: ReturnType<typeof setTimeout> | undefined;
 let showingSecret = false;
@@ -56,11 +60,13 @@ async function attempt(action: () => Promise<void>) {
     if (generation !== uiGeneration) home();
   }
 }
-function screen(title: string) {
+function screen(title?: string) {
   screenId += 1;
   clearTimeout(secretTimer);
   showingSecret = false;
-  app.replaceChildren(el("h1", title));
+  app.replaceChildren(...(title ? [el("h1", title)] : []));
+  brand.hidden = false;
+  accountControl.hidden = true;
   app.setAttribute("aria-busy", "false");
 }
 function back() {
@@ -711,7 +717,36 @@ function home() {
       ),
     );
   } else {
-    screen("Your wallet");
+    screen();
+    brand.hidden = true;
+    accountControl.hidden = false;
+    const select = el("select");
+    select.setAttribute("aria-label", "Account");
+    vault.accounts.forEach((account, index) => {
+      const option = el("option", account.name);
+      option.value = String(index);
+      option.selected = index === vault.selected;
+      select.append(option);
+    });
+    select.addEventListener("change", () => {
+      void attempt(() =>
+        command("selectAccount", { index: Number(select.value) }),
+      );
+    });
+    accountControl.replaceChildren(select);
+    const account = vault.accounts[vault.selected];
+    if (account) {
+      const address = button(account.address, () =>
+        attempt(async () => {
+          await navigator.clipboard.writeText(account.address);
+          status.textContent = "Address copied.";
+        }),
+      );
+      address.className = "address address-copy";
+      address.title = "Copy address";
+      address.setAttribute("aria-label", `Copy address ${account.address}`);
+      app.append(address);
+    }
     for (const item of state.approvals)
       app.append(button(`Review ${item.origin}`, () => approval(item)));
     const networkLabel = el("label", "Network", "stack field");
@@ -730,28 +765,14 @@ function home() {
     });
     networkLabel.append(networkSelect);
     app.append(networkLabel);
-    const label = el("label", "Account", "stack field");
-    const select = el("select");
-    select.setAttribute("aria-label", "Account");
-    vault.accounts.forEach((account, index) => {
-      const option = el("option", account.name);
-      option.value = String(index);
-      option.selected = index === vault.selected;
-      select.append(option);
-    });
-    select.addEventListener("change", () => {
-      void attempt(() =>
-        command("selectAccount", { index: Number(select.value) }),
-      );
-    });
-    label.append(select);
-    app.append(label);
-    const account = vault.accounts[vault.selected];
     if (account) {
-      const balance = el("p", "Balance not loaded", "balance");
+      const balance = el("p", "Loading balance…", "balance");
       app.append(balance);
       const currentScreen = screenId;
+      let refreshing = false;
       const refresh = async () => {
+        if (refreshing) return;
+        refreshing = true;
         balance.textContent = "Loading balance…";
         try {
           const value = await rpc<{
@@ -769,6 +790,8 @@ function home() {
         } catch {
           if (currentScreen === screenId)
             balance.textContent = "Balance unavailable. Refresh to try again.";
+        } finally {
+          refreshing = false;
         }
       };
       const actions = el("div", undefined, "action-grid");
@@ -781,25 +804,8 @@ function home() {
         button("Settings", () => settings(), true),
       );
       app.append(actions);
-
-      app.append(
-        el("p", account.address, "address"),
-        button(
-          "Copy address",
-          () =>
-            attempt(async () => {
-              await navigator.clipboard.writeText(account.address);
-              status.textContent = "Address copied.";
-            }),
-          true,
-        ),
-      );
+      void refresh();
     }
-    if (!vault.backedUp)
-      app.append(
-        el("p", "Back up your recovery phrase before sending or signing."),
-        button("Back up now", () => backup()),
-      );
   }
 }
 document.getElementById("open-tab")?.addEventListener("click", () => {

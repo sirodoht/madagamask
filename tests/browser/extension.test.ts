@@ -188,11 +188,10 @@ test("create, back up, lock, and restore a wallet through the production UI", as
     .getByLabel("Confirm password", { exact: true })
     .fill("a-disposable-test-password");
   await popup.getByRole("button", { name: "Create test wallet" }).click();
-  await expect(
-    popup.getByRole("heading", { name: "Your wallet" }),
-  ).toBeVisible();
+  await expect(popup.getByLabel("Account", { exact: true })).toBeVisible();
   const address = await popup.locator(".address").textContent();
-  await popup.getByRole("button", { name: "Back up now" }).click();
+  await popup.getByRole("button", { name: "Settings", exact: true }).click();
+  await popup.getByRole("button", { name: "Back up recovery phrase" }).click();
   await popup
     .getByLabel("Password", { exact: true })
     .fill("a-disposable-test-password");
@@ -201,7 +200,7 @@ test("create, back up, lock, and restore a wallet through the production UI", as
   expect(phrase?.split(" ")).toHaveLength(12);
   await popup.getByLabel("Confirm your recovery phrase").fill(phrase ?? "");
   await popup.getByRole("button", { name: "Confirm backup" }).click();
-  await expect(popup.getByRole("button", { name: "Back up now" })).toBeHidden();
+  await expect(popup.getByLabel("Account", { exact: true })).toBeVisible();
   const stored = JSON.stringify(
     await popup.evaluate(() => chrome.storage.local.get(null)),
   );
@@ -356,12 +355,7 @@ test("public Sepolia and Base Sepolia balances keep their network context", asyn
     await popup
       .getByLabel("Network", { exact: true })
       .selectOption(String(chainId));
-    await expect(
-      popup.getByRole("heading", { name: "Your wallet" }),
-    ).toBeVisible();
-    await popup
-      .getByRole("button", { name: "Refresh balance", exact: true })
-      .click();
+    await expect(popup.getByLabel("Account", { exact: true })).toBeVisible();
     await expect(popup.locator(".balance")).toHaveText(/^\d+(\.\d+)? ETH$/, {
       timeout: 30_000,
     });
@@ -427,10 +421,23 @@ test("production UI imports, sends native assets, imports a token, and sends tok
       .getByRole("button", { name: "Verify and save network" })
       .click();
     await popup.getByLabel("Network", { exact: true }).selectOption("31337");
-    await popup
-      .getByRole("button", { name: "Refresh balance", exact: true })
-      .click();
     await expect(popup.locator(".balance")).toHaveText("10000 ETH");
+    for (const width of [320, 380]) {
+      await popup.setViewportSize({ width, height: 600 });
+      expect(
+        await popup.evaluate(() => ({
+          fitsHeight: document.documentElement.scrollHeight <= innerHeight,
+          fitsWidth: document.documentElement.scrollWidth <= innerWidth,
+        })),
+      ).toMatchObject({ fitsHeight: true, fitsWidth: true });
+    }
+    await popup.setViewportSize({ width: 380, height: 600 });
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await popup.locator(".address-copy").click();
+    await expect(popup.getByRole("status")).toHaveText("Address copied.");
+    expect(await popup.evaluate(() => navigator.clipboard.readText())).toBe(
+      await popup.locator(".address-copy").textContent(),
+    );
     await popup.screenshot({
       path: "artifacts/wallet-home.png",
       fullPage: true,
