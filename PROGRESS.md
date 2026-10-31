@@ -285,3 +285,10 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Receive now shares the account/full-address copy header and network badge with Send, with a centered 224px QR code and compact Back action. Removed the duplicate address and test-assets paragraph.
 - Chrome verification decodes the actual canvas pixels for Sepolia and Base Sepolia, checks exact clipboard contents and stable inline feedback, and confirms 320/396px layouts fit without scrolling. Inspected Chrome and Firefox 159 screenshots. Lint/typecheck and both package checks pass; both distributions and archives rebuilt.
+
+### Readable Activity and transaction status — 2026-10-31
+
+- Activity shares the account/address header and network badge. Compact cards show amounts, recipients, local date/time, and distinct pending/confirmed/failed/uncertain statuses. Details holds hashes, contract addresses, known-chain explorer links, and eligible speed-up/cancellation controls. The list explicitly covers sends initiated through Madagamask.
+- Background presentation decodes token recipients and exact units using chain-matched metadata, falls back to explicit base units when metadata is missing, and preserves any accompanying native amount. Existing persisted activity remains unchanged. Explorer links use bundled chain metadata; local/custom chains without a known explorer retain their hash without a fabricated link.
+- Cached entries render first, refresh on opening, and poll every ten seconds while pending or uncertain entries remain visible. Expanded details survive refresh; polling stops after navigation. Stale status data is identified and never styled as confirmed success; status updates are announced politely.
+- All 42 unit tests and nine local-chain tests pass. Chrome flows verify real native/token history, filtering, failed/uncertain states, explorer URLs, automatic refresh with preserved details, and stopping refresh after navigation. Inspected Chrome and Firefox 159 layouts; 320/396px checks have no horizontal overflow. Lint/typecheck and both package checks pass within existing bundle budgets; both distributions and archives rebuilt.

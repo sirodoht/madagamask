@@ -1,3 +1,4 @@
+import { presentActivity } from "./activity.ts";
 import { Dapps } from "./dapps.ts";
 import { Networks } from "./networks.ts";
 import { Phishing, type Snapshot } from "./phishing.ts";
@@ -150,9 +151,20 @@ export class Wallet {
         this.transactions.cancel(String(p.id));
         return this.view();
       case "activity":
-        return this.transactions.list();
-      case "refreshActivity":
-        return this.transactions.refresh();
+      case "refreshActivity": {
+        const items = await (action === "refreshActivity"
+          ? this.transactions.refresh()
+          : this.transactions.list());
+        const networks = await this.networks.view();
+        const tokens = await this.tokens.list();
+        return items.map((item) =>
+          presentActivity(
+            item,
+            networks.items.find((network) => network.id === item.chainId),
+            tokens,
+          ),
+        );
+      }
       case "replaceTransaction":
         return this.transactions.replacement(p.hash, p.cancel === true);
       case "balance": {

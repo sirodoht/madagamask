@@ -546,6 +546,92 @@ main h1 {
   font-size: 0.8125rem;
 }
 
+.activity-toolbar,
+.activity-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.activity-toolbar small {
+  font-size: 0.75rem;
+}
+.activity-refresh {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--color-muted);
+  background: transparent;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+.activity-refresh:hover {
+  background: var(--color-accent-soft);
+}
+.activity-list {
+  display: grid;
+  gap: 12px;
+}
+.activity-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.activity-top {
+  align-items: flex-start;
+}
+.activity-top h2 {
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.activity-status {
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #eef0ed;
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  flex-shrink: 0;
+}
+.activity-status[data-tone="success"] {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.activity-status[data-tone="error"] {
+  color: var(--color-error);
+  background: #fbe8e5;
+}
+.activity-status[data-tone="pending"] {
+  color: #735112;
+  background: #faf0d7;
+}
+.activity-recipient,
+.activity-card time {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+.activity-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--color-accent);
+}
+.activity-card .action-grid {
+  margin-top: 12px;
+}
+.activity-empty {
+  padding: 32px 0;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
 .wallet-group {
   padding: 8px;
   border: 1px solid var(--color-border);

@@ -21,7 +21,9 @@ import {
   maxUint256,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
+import { presentActivity } from "../../src/core/activity.ts";
 import { client, type Network, rpc } from "../../src/core/networks.ts";
+import type { Activity } from "../../src/core/transactions.ts";
 
 let context: BrowserContext;
 let profile: string;
@@ -723,6 +725,146 @@ test("receive keeps account context, copies the full address, and encodes the se
   }
 });
 
+test("activity separates statuses, scopes accounts, and preserves expanded details on refresh", async () => {
+  await popup.clock.install();
+  await popup.evaluate(() =>
+    chrome.runtime.sendMessage({
+      version: 1,
+      type: "app:command",
+      action: "import",
+      params: {
+        password: "disposable-activity-password",
+        phrase: "test test test test test test test test test test test junk",
+      },
+    }),
+  );
+  await popup.reload();
+  const from = (await popup.locator(".address-value").textContent()) as Hex;
+  const network = {
+    id: 11155111,
+    name: "Sepolia",
+    symbol: "ETH",
+    rpc: "https://example.invalid",
+  };
+  const raw: Activity[] = (["pending", "reverted", "unknown"] as const).map(
+    (status, index) => ({
+      hash: `0x${String(index + 1).repeat(64)}` as Hex,
+      chainId: network.id,
+      from,
+      to: "0x0000000000000000000000000000000000001234",
+      value: "1000000000000000000",
+      data: "0x",
+      nonce: index,
+      gas: "21000",
+      createdAt: Date.now() - index * 60000,
+      status,
+    }),
+  );
+  raw.push(
+    { ...(raw[0] as Activity), chainId: 1 },
+    {
+      ...(raw[0] as Activity),
+      from: "0x0000000000000000000000000000000000009999",
+    },
+  );
+  const rows = raw.map((item) => presentActivity(item, network));
+  await popup.evaluate((rows) => {
+    const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+    let refreshes = 0;
+    Object.defineProperty(chrome.runtime, "sendMessage", {
+      value: (
+        request: { action?: string },
+        callback: (value: unknown) => void,
+      ) => {
+        if (["activity", "refreshActivity"].includes(request.action ?? "")) {
+          if (request.action === "refreshActivity") refreshes += 1;
+          document.documentElement.dataset.activityRefreshes =
+            String(refreshes);
+          callback({
+            ok: true,
+            value: rows.map((row, index) =>
+              index === 0 && refreshes > 1
+                ? {
+                    ...row,
+                    status: "confirmed",
+                    display: {
+                      ...row.display,
+                      status: "Confirmed",
+                      tone: "success",
+                    },
+                  }
+                : row,
+            ),
+          });
+          return;
+        }
+        return original(request, callback);
+      },
+    });
+  }, rows);
+  await popup.getByRole("button", { name: "Activity", exact: true }).click();
+  await expect(popup.locator(".activity-card")).toHaveCount(3);
+  await expect(popup.locator(".activity-status")).toHaveText([
+    "Pending",
+    "Failed",
+    "Status unknown",
+  ]);
+  await popup
+    .locator(".activity-card")
+    .first()
+    .getByText("Details", { exact: true })
+    .click();
+  const link = popup
+    .locator(".activity-card")
+    .first()
+    .getByRole("link", { name: "View transaction" });
+  await expect(link).toHaveAttribute(
+    "href",
+    `https://sepolia.etherscan.io/tx/${raw[0]?.hash}`,
+  );
+  await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(
+    popup.getByRole("button", { name: "Speed up", exact: true }),
+  ).toBeVisible();
+  await popup.clock.fastForward(10_000);
+  await expect(popup.locator(".activity-status").first()).toHaveText(
+    "Confirmed",
+  );
+  await expect(
+    popup.locator(".activity-card").first().locator("details"),
+  ).toHaveAttribute("open", "");
+  await expect(link).toBeVisible();
+  await expect(
+    popup
+      .locator(".activity-card")
+      .first()
+      .getByRole("button", { name: "Speed up" }),
+  ).toHaveCount(0);
+  for (const width of [320, 396]) {
+    await popup.setViewportSize({ width, height: 600 });
+    expect(
+      await popup.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await popup
+    .locator(".activity-card")
+    .first()
+    .getByText("Details", { exact: true })
+    .click();
+  await popup.screenshot({
+    path: "artifacts/activity-states.png",
+    fullPage: true,
+  });
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await popup.clock.fastForward(10_000);
+  await expect(popup.locator("html")).toHaveAttribute(
+    "data-activity-refreshes",
+    "2",
+  );
+});
+
 test("production UI imports, sends native assets, imports a token, and sends tokens on a local chain", async () => {
   test.setTimeout(60_000);
   const portServer = createServer();
@@ -951,8 +1093,13 @@ test("production UI imports, sends native assets, imports a token, and sends tok
     await popup.getByRole("button", { name: "Activity", exact: true }).click();
     await popup.getByRole("button", { name: "Refresh activity" }).click();
     await expect(
-      popup.getByRole("heading", { name: "confirmed", exact: true }),
+      popup.locator(".activity-status").filter({ hasText: /^Confirmed$/ }),
     ).toBeVisible();
+    await expect(popup.locator(".activity-card h2")).toHaveText("Send · 1 ETH");
+    await popup.getByText("Details", { exact: true }).click();
+    await expect(
+      popup.getByRole("link", { name: "View transaction" }),
+    ).toHaveCount(0);
     await popup.getByRole("button", { name: "Back", exact: true }).click();
     const fixture = JSON.parse(
       await readFile("tests/fixtures/test-token.json", "utf8"),
@@ -1037,6 +1184,20 @@ test("production UI imports, sends native assets, imports a token, and sends tok
         }),
       )
       .toBe(1234567n);
+
+    await popup
+      .getByRole("button", { name: "View activity", exact: true })
+      .click();
+    await expect(popup.locator(".activity-card h2").first()).toHaveText(
+      "Token transfer · 1.234567 MTEST",
+    );
+    await expect(popup.locator(".activity-recipient").first()).toContainText(
+      "0x0000000000000000000000000000000000005678",
+    );
+    await expect(popup.locator(".activity-status").first()).toHaveText(
+      "Confirmed",
+    );
+    await popup.screenshot({ path: "artifacts/activity.png", fullPage: true });
 
     const dappServer = createServer((_request, response) => {
       response.setHeader("Content-Type", "text/html");

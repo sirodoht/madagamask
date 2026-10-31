@@ -1,4 +1,5 @@
 import encodeQR from "qr";
+import type { ActivityView } from "../core/activity.ts";
 import type { Approval } from "../core/dapps.ts";
 import type { Token } from "../core/tokens.ts";
 import type { Activity, Preview } from "../core/transactions.ts";
@@ -960,52 +961,144 @@ function send(token?: Token, draft: Record<string, string> = {}) {
   app.append(sendForm);
 }
 async function activity(refresh = false) {
-  const items = await rpc<Activity[]>(refresh ? "refreshActivity" : "activity");
-  screen("Activity");
-  app.append(
-    el(
-      "p",
-      "Transactions initiated by this wallet only. Incoming transfers and imported accounts’ past activity are not indexed.",
-    ),
-  );
+  const previousScreen = screenId;
+  const items = await rpc<ActivityView[]>("activity");
+  if (previousScreen !== screenId) return;
   const account = state.vault.accounts[state.vault.selected];
-  const relevant = items.filter(
-    (item) =>
-      item.chainId === state.networks.selected &&
-      item.from === account?.address,
+  const network = state.networks.items.find(
+    (item) => item.id === state.networks.selected,
   );
-  if (!relevant.length) app.append(el("p", "No transactions yet."));
-  for (const item of relevant) {
-    const card = el("section", undefined, "card stack");
-    card.append(
-      el("h2", item.status),
-      el("p", item.hash, "address"),
-      el("p", `To: ${item.to}`),
+  if (!account || !network) return;
+  transferHeading("Activity", network.name);
+  const currentScreen = screenId;
+  const toolbar = el("div", undefined, "activity-toolbar");
+  toolbar.append(el("small", "Sent from this account with Madagamask."));
+  const error = transferError();
+  const list = el("div", undefined, "activity-list");
+  list.setAttribute("aria-live", "polite");
+  let loading = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const matches = (items: ActivityView[]) =>
+    items.filter(
+      (item) =>
+        item.chainId === network.id &&
+        item.from.toLowerCase() === account.address.toLowerCase(),
     );
-    if (item.error) card.append(el("p", item.error));
-    if (["pending", "unknown", "unseen"].includes(item.status))
-      for (const cancel of [false, true])
-        card.append(
-          button(
-            cancel ? "Cancel transaction" : "Speed up",
-            () =>
-              attempt(async () => {
-                review(
-                  await rpc<Preview>("replaceTransaction", {
-                    hash: item.hash,
-                    cancel,
-                  }),
-                );
-              }),
-            true,
-          ),
-        );
-    app.append(card);
-  }
-  app.append(
-    button("Refresh activity", () => attempt(() => activity(true)), true),
-  );
+  const render = (items: ActivityView[]) => {
+    const expanded = new Set(
+      [...list.querySelectorAll<HTMLDetailsElement>("details[open]")].map(
+        (item) => item.dataset.hash,
+      ),
+    );
+    list.replaceChildren();
+    const relevant = matches(items).sort((a, b) => b.createdAt - a.createdAt);
+    if (!relevant.length)
+      list.append(el("p", "No sent transactions yet.", "activity-empty"));
+    for (const item of relevant) {
+      const card = el("section", undefined, "activity-card");
+      const top = el("div", undefined, "activity-top");
+      const badge = el("span", item.display.status, "activity-status");
+      badge.dataset.tone = item.display.tone;
+      top.append(
+        el("h2", `${item.display.title} · ${item.display.amount}`),
+        badge,
+      );
+      const time = el(
+        "time",
+        new Date(item.createdAt).toLocaleString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
+      time.dateTime = new Date(item.createdAt).toISOString();
+      card.append(
+        top,
+        el("p", `To ${item.display.recipient}`, "address activity-recipient"),
+        time,
+      );
+      if (item.display.note)
+        card.append(el("p", item.display.note, "transfer-note"));
+      const details = el("details", undefined, "transfer-details");
+      details.dataset.hash = item.hash;
+      details.open = expanded.has(item.hash);
+      details.append(el("summary", "Details"), el("p", item.hash, "address"));
+      if (item.data !== "0x")
+        details.append(el("p", `Contract: ${item.to}`, "address"));
+      if (item.display.explorer) {
+        const link = el("a", "View transaction ↗", "activity-link");
+        link.href = item.display.explorer;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        details.append(link);
+      }
+      if (["pending", "unknown", "unseen"].includes(item.status)) {
+        const actions = el("div", undefined, "action-grid");
+        for (const cancel of [false, true])
+          actions.append(
+            button(
+              cancel ? "Cancel transaction" : "Speed up",
+              () =>
+                attempt(
+                  async () =>
+                    review(
+                      await rpc<Preview>("replaceTransaction", {
+                        hash: item.hash,
+                        cancel,
+                      }),
+                    ),
+                  false,
+                ),
+              true,
+            ),
+          );
+        details.append(actions);
+      }
+      card.append(details);
+      list.append(card);
+    }
+    clearTimeout(timer);
+    if (
+      relevant.some((item) =>
+        ["pending", "submitting", "unknown"].includes(item.status),
+      )
+    )
+      timer = setTimeout(() => {
+        if (screenId === currentScreen && !document.hidden) void load();
+      }, 10000);
+  };
+  const load = async () => {
+    if (loading || screenId !== currentScreen) return;
+    loading = true;
+    refreshButton.disabled = true;
+    refreshButton.textContent = "";
+    const spinner = el("span", undefined, "balance-spinner");
+    refreshButton.append(spinner);
+    refreshButton.setAttribute("aria-label", "Refreshing activity");
+    error.textContent = "";
+    try {
+      const updated = await rpc<ActivityView[]>("refreshActivity");
+      if (screenId === currentScreen) render(updated);
+    } catch (cause) {
+      error.textContent =
+        cause instanceof Error ? cause.message : "Could not refresh activity.";
+    } finally {
+      loading = false;
+      refreshButton.disabled = false;
+      refreshButton.textContent = "↻";
+      refreshButton.setAttribute("aria-label", "Refresh activity");
+    }
+  };
+  const refreshButton = button("↻", load, true);
+  refreshButton.className = "activity-refresh";
+  refreshButton.setAttribute("aria-label", "Refresh activity");
+  toolbar.append(refreshButton);
+  app.append(toolbar, error, list);
   back();
+  render(items);
+  if (refresh || matches(items).length) void load();
 }
 async function tokens() {
   const items = await rpc<Token[]>("tokens");
@@ -1228,7 +1321,7 @@ function home() {
       navigation.setAttribute("aria-label", "Wallet navigation");
       navigation.append(
         button("Tokens", () => attempt(() => tokens()), true),
-        button("Activity", () => attempt(() => activity()), true),
+        button("Activity", () => attempt(() => activity(), false), true),
         button("Settings", () => settings(), true),
       );
       app.append(actions, navigation);
