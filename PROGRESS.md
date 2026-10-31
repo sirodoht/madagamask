@@ -210,3 +210,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Moved Back from the Wallets heading to directly below Add wallet. Returning home still restores focus to the account selector.
 - Lint/typecheck, both package checks, and the existing Chrome wallet selection/rename/navigation flow pass. Both browser distributions and archives rebuilt.
+
+### Consistent selector header and menu toggle — 2026-10-31
+
+- The account list now shares the home screen’s account name, full copyable address, Lock, and open-tab header. Removed the Wallets heading, logo substitution, and account button’s dropdown arrow. Back remains below Add wallet; the header account button also returns home from the list.
+- Associated each three-dot button with its native popover target, so clicking the same button again closes the menu instead of reopening it after light dismissal. Native autofocus preserves keyboard navigation; positioning remains bounded by the viewport.
+- Lint/typecheck, both package checks, and three targeted Chrome flows pass, including identical header/address geometry, absent heading/arrow, keyboard navigation, and repeated-click dismissal. Firefox 159 actual pointer-click validation confirms closure; inspected the consistent header. Both distributions and archives rebuilt.

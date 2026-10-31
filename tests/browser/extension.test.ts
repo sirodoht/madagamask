@@ -289,21 +289,28 @@ test("wallet screen selects accounts and renames without changing selection", as
   const selector = popup.getByRole("button", { name: "Account", exact: true });
   const address = await popup.locator(".address-copy").textContent();
   await selector.focus();
-  await popup.keyboard.press("ArrowDown");
-  await expect(
-    popup.getByRole("heading", { name: "Wallets", exact: true }),
-  ).toBeVisible();
+  const header = await popup.locator(".brand-row").boundingBox();
+  const addressBounds = await popup.locator("#account-address").boundingBox();
+  await popup.keyboard.press("Enter");
+  expect(await popup.locator(".brand-row").boundingBox()).toEqual(header);
+  expect(await popup.locator("#account-address").boundingBox()).toEqual(
+    addressBounds,
+  );
+  await expect(popup.locator(".brand")).toBeHidden();
+  await expect(popup.locator("h1")).toHaveCount(0);
+  expect(
+    await selector.evaluate((el) => getComputedStyle(el, "::after").content),
+  ).toBe("none");
+  await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
   await expect(
     popup.getByRole("button", {
       name: "Select account Account 1",
       exact: true,
     }),
-  ).toBeFocused();
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(popup.locator("[popover]:popover-open")).toHaveCount(0);
   await popup.locator("body").click({ position: { x: 4, y: 4 } });
-  await expect(
-    popup.getByRole("heading", { name: "Wallets", exact: true }),
-  ).toBeVisible();
+  await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
   await popup
     .getByRole("button", {
       name: "Account actions for Private account",
@@ -341,6 +348,11 @@ test("wallet screen selects accounts and renames without changing selection", as
   });
   await expect(walletActions).toBeFocused();
   await walletActions.click();
+  await expect(walletActions).toHaveAttribute("aria-expanded", "true");
+  await walletActions.click();
+  await expect(popup.locator("[popover]:popover-open")).toHaveCount(0);
+  await expect(walletActions).toHaveAttribute("aria-expanded", "false");
+  await walletActions.click();
   const menuBounds = await popup
     .getByRole("menu", { name: "Wallet actions for Wallet 1", exact: true })
     .boundingBox();
@@ -373,9 +385,7 @@ test("wallet screen selects accounts and renames without changing selection", as
     .getByRole("menuitem", { name: "Rename account", exact: true })
     .click();
   await popup.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(
-    popup.getByRole("heading", { name: "Wallets", exact: true }),
-  ).toBeVisible();
+  await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
   expect(
     await popup.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -1106,9 +1116,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     .getByRole("button", { name: "+ Add wallet", exact: true })
     .click();
   await popup.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(
-    popup.getByRole("heading", { name: "Wallets", exact: true }),
-  ).toBeVisible();
+  await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
   await popup
     .getByRole("button", { name: "+ Add wallet", exact: true })
     .click();

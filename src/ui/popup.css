@@ -219,9 +219,6 @@ small {
   text-align: left;
   overflow-wrap: anywhere;
 }
-.account-toggle::after {
-  content: "⌄";
-}
 .account-option {
   display: flex;
   align-items: center;

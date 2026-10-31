@@ -77,6 +77,7 @@ function screen(title?: string) {
   accountAddress.hidden = true;
   accountAddress.replaceChildren();
   app.setAttribute("aria-busy", "false");
+  app.removeAttribute("aria-label");
 }
 function back(destination: () => void = home) {
   app.append(button("Back", destination, true));
@@ -223,25 +224,15 @@ function actionsMenu(label: string, actions: [string, () => void][]) {
   menu.popover = "auto";
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", label);
-  const trigger = button(
-    "⋯",
-    () => {
-      menu.togglePopover();
-      if (!menu.matches(":popover-open")) return;
-      const bounds = trigger.getBoundingClientRect();
-      const size = menu.getBoundingClientRect();
-      menu.style.left = `${Math.max(8, Math.min(bounds.right - size.width, innerWidth - size.width - 8))}px`;
-      menu.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, innerHeight - size.height - 8))}px`;
-      items[0]?.focus();
-    },
-    true,
-  );
+  const trigger = button("⋯", () => {}, true);
+  trigger.popoverTargetElement = menu;
+  trigger.popoverTargetAction = "toggle";
   trigger.className = "row-menu-trigger";
   trigger.setAttribute("aria-label", label);
   trigger.setAttribute("aria-haspopup", "menu");
   trigger.setAttribute("aria-controls", menu.id);
   trigger.setAttribute("aria-expanded", "false");
-  const items = actions.map(([name, run]) => {
+  const items = actions.map(([name, run], index) => {
     const item = button(
       name,
       () => {
@@ -253,6 +244,7 @@ function actionsMenu(label: string, actions: [string, () => void][]) {
     item.className = "account-option";
     item.setAttribute("role", "menuitem");
     item.tabIndex = -1;
+    item.autofocus = index === 0;
     return item;
   });
   menu.append(...items);
@@ -261,6 +253,16 @@ function actionsMenu(label: string, actions: [string, () => void][]) {
       "aria-expanded",
       String((event as ToggleEvent).newState === "open"),
     );
+    if ((event as ToggleEvent).newState !== "open") return;
+    const bounds = trigger.getBoundingClientRect();
+    const width = Math.min(176, innerWidth - 16);
+    menu.style.left = `${Math.max(8, Math.min(bounds.right - width, innerWidth - width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, innerHeight - items.length * 44 - 18))}px`;
+  });
+  menu.addEventListener("toggle", () => {
+    if (!menu.matches(":popover-open")) return;
+    const bounds = trigger.getBoundingClientRect();
+    menu.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, innerHeight - menu.getBoundingClientRect().height - 8))}px`;
   });
   menu.addEventListener("keydown", (event) => {
     const current = items.indexOf(document.activeElement as HTMLButtonElement);
@@ -282,13 +284,59 @@ function actionsMenu(label: string, actions: [string, () => void][]) {
   wrapper.append(trigger, menu);
   return wrapper;
 }
+function accountHeader(onSelect: () => void = wallets) {
+  const vault = state.vault;
+  brand.hidden = true;
+  accountControl.hidden = false;
+  const account = vault.accounts[vault.selected];
+  const select = button(account?.name ?? "Account", onSelect, true);
+  const selectedLabel = el("span", account?.name ?? "Account", "account-name");
+  selectedLabel.id = "selected-account-label";
+  select.replaceChildren(selectedLabel);
+  select.classList.add("account-toggle");
+  select.setAttribute("aria-label", "Account");
+  select.setAttribute("aria-describedby", selectedLabel.id);
+  accountControl.replaceChildren(select);
+  if (account) {
+    const value = el("span", account.address, "address-value");
+    const feedback = el("span", "", "address-feedback");
+    feedback.setAttribute("aria-live", "polite");
+    const address = button("", async () => {
+      if (address.disabled) return;
+      address.disabled = true;
+      clearTimeout(copyTimer);
+      try {
+        await navigator.clipboard.writeText(account.address);
+        feedback.textContent = "Address copied ✓";
+      } catch {
+        feedback.textContent = "Could not copy. Try again.";
+      } finally {
+        address.disabled = false;
+      }
+      if (!address.isConnected) return;
+      address.classList.add("show-feedback");
+      copyTimer = setTimeout(() => {
+        address.classList.remove("show-feedback");
+        feedback.textContent = "";
+      }, 2000);
+    });
+    address.className = "address address-copy";
+    address.append(value, feedback);
+    address.title = "Copy address";
+    address.setAttribute("aria-label", `Copy address ${account.address}`);
+    accountAddress.hidden = false;
+    accountAddress.append(address);
+  }
+  return account;
+}
 function wallets() {
   screen();
   const returnHome = () => {
     home();
     accountControl.querySelector("button")?.focus();
   };
-  app.append(el("h1", "Wallets"));
+  accountHeader(returnHome);
+  app.setAttribute("aria-label", "Accounts");
   for (const wallet of state.vault.wallets) {
     const group = el("section", undefined, "wallet-group");
     group.setAttribute("aria-label", wallet.name);
@@ -973,58 +1021,7 @@ function home() {
     );
   } else {
     screen();
-    brand.hidden = true;
-    accountControl.hidden = false;
-    const account = vault.accounts[vault.selected];
-    const select = button(account?.name ?? "Account", wallets, true);
-    const selectedLabel = el(
-      "span",
-      account?.name ?? "Account",
-      "account-name",
-    );
-    selectedLabel.id = "selected-account-label";
-    select.replaceChildren(selectedLabel);
-    select.classList.add("account-toggle");
-    select.setAttribute("aria-label", "Account");
-    select.setAttribute("aria-describedby", selectedLabel.id);
-    select.addEventListener("keydown", (event) => {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        wallets();
-        app.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
-      }
-    });
-    accountControl.replaceChildren(select);
-    if (account) {
-      const value = el("span", account.address, "address-value");
-      const feedback = el("span", "", "address-feedback");
-      feedback.setAttribute("aria-live", "polite");
-      const address = button("", async () => {
-        if (address.disabled) return;
-        address.disabled = true;
-        clearTimeout(copyTimer);
-        try {
-          await navigator.clipboard.writeText(account.address);
-          feedback.textContent = "Address copied ✓";
-        } catch {
-          feedback.textContent = "Could not copy. Try again.";
-        } finally {
-          address.disabled = false;
-        }
-        if (!address.isConnected) return;
-        address.classList.add("show-feedback");
-        copyTimer = setTimeout(() => {
-          address.classList.remove("show-feedback");
-          feedback.textContent = "";
-        }, 2000);
-      });
-      address.className = "address address-copy";
-      address.append(value, feedback);
-      address.title = "Copy address";
-      address.setAttribute("aria-label", `Copy address ${account.address}`);
-      accountAddress.hidden = false;
-      accountAddress.append(address);
-    }
+    const account = accountHeader();
     for (const item of state.approvals)
       app.append(button(`Review ${item.origin}`, () => approval(item)));
     const networkLabel = el("label", "Network", "stack field");
