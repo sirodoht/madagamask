@@ -314,3 +314,8 @@ main h1 {
   color: var(--color-text);
   font-weight: 550;
 }
+
+.settings-grid .button {
+  padding: 0.5rem;
+  overflow-wrap: anywhere;
+}

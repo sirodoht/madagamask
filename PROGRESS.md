@@ -134,3 +134,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Firefox 159 debugger-free lifecycle checks pass: with every wallet page closed for 40 seconds, the background identity changes and the session restores unlocked. A one-minute timeout expires with pages closed for 65 seconds and removes session material. Extension reload preserves the vault but clears the session. Unlock focuses the password field and omits the creation hint. Reproduce with `npm run test:lifecycle:firefox`; evidence is in `artifacts/firefox-lifecycle.json`.
 - Nine local-chain tests pass. Eight Chrome browser flows pass (two optional external-service checks skipped); the dapp flow was extended and rerun to confirm that the actual extension content-script context cannot read `storage.session`, and the session key is absent from local storage. Added and passed explicit legacy-timeout migration coverage, bringing unit coverage to 32 tests. Lint, typecheck, and package checks pass; both browser distributions and archives rebuilt.
 - The core checkpoint is `4142b4c`. Push remains blocked by the missing Git remote URL; no remote repository was guessed or created.
+
+### Compact Settings — 2026-10-31
+
+- Removed the phishing status/timestamp paragraph and update-source explanation from Settings. The update action remains. Backup now uses the same neutral style as every other setting.
+- Arranged settings in a compact two-column grid, retaining the shared shell/header padding and Lock/open-tab placement. All settings, including the conditional imported-key export and Back, fit at 320×600 and 380×600 without hiding overflow.
+- Lint, typecheck, and both package checks pass. Three targeted Chrome flows pass: settings layout/header geometry, backup/restore, and native/token transfers using network settings. Inspected Firefox 159 Settings (about 450 CSS pixels tall) and Chrome screenshots. Both distributions and archives rebuilt.

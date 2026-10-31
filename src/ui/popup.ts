@@ -299,11 +299,9 @@ function approval(item: Approval) {
 }
 function settings() {
   screen("Settings");
-  app.append(
-    el(
-      "p",
-      `Phishing protection: ${state.protection.status}. Last update: ${state.protection.updatedAt ? new Date(state.protection.updatedAt).toLocaleString() : "never"}. Checks run locally.`,
-    ),
+  const actions = el("div", undefined, "action-grid settings-grid");
+  app.append(actions);
+  actions.append(
     button(
       "Update phishing list",
       () =>
@@ -314,15 +312,11 @@ function settings() {
         }),
       true,
     ),
-    el(
-      "small",
-      "Updates fetch the MIT-licensed PhishDestroy list from GitHub. No visited domains are sent. Refresh daily; lists older than 24 hours are marked stale.",
-    ),
   );
-  app.append(
+  actions.append(
     button("Connected sites", () => attempt(() => connections()), true),
   );
-  app.append(
+  actions.append(
     button(
       "Add or edit network",
       () =>
@@ -345,12 +339,12 @@ function settings() {
       true,
     ),
   );
-  app.append(button("Back up recovery phrase", () => backup()));
+  actions.append(button("Back up recovery phrase", () => backup(), true));
   if (state.vault.accounts[state.vault.selected]?.imported)
-    app.append(
+    actions.append(
       button("Export imported key", () => backup(state.vault.selected), true),
     );
-  app.append(
+  actions.append(
     button(
       "Add account",
       () =>
@@ -363,7 +357,7 @@ function settings() {
       true,
     ),
   );
-  app.append(
+  actions.append(
     button(
       "Import private key",
       () =>
@@ -384,7 +378,7 @@ function settings() {
       true,
     ),
   );
-  app.append(
+  actions.append(
     button(
       "Rename account",
       () =>
@@ -397,7 +391,7 @@ function settings() {
       true,
     ),
   );
-  app.append(
+  actions.append(
     button(
       "Change password",
       () =>
@@ -413,7 +407,7 @@ function settings() {
       true,
     ),
   );
-  app.append(
+  actions.append(
     button(
       "Auto-lock",
       () =>
@@ -433,7 +427,7 @@ function settings() {
       true,
     ),
   );
-  app.append(
+  actions.append(
     button(
       "Reset wallet",
       () =>

@@ -175,6 +175,56 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
       popup.getByRole("button", { name: "Open in a tab" }),
     ).toBeFocused();
   }
+  await popup.evaluate(async () => {
+    document.documentElement.style.fontSize = "16px";
+    await chrome.runtime.sendMessage({
+      version: 1,
+      type: "app:command",
+      action: "import",
+      params: {
+        password: "disposable-settings-password",
+        phrase: "test test test test test test test test test test test junk",
+      },
+    });
+    await chrome.runtime.sendMessage({
+      version: 1,
+      type: "app:command",
+      action: "addAccount",
+      params: {
+        name: "Imported",
+        privateKey: `0x${"11".repeat(32)}`,
+      },
+    });
+  });
+  await popup.reload();
+  for (const width of [320, 380]) {
+    await popup.setViewportSize({ width, height: 600 });
+    const header = await popup.locator(".brand-row").boundingBox();
+    const lock = await popup
+      .getByRole("button", { name: "Lock wallet" })
+      .boundingBox();
+    await popup.getByRole("button", { name: "Settings", exact: true }).click();
+    expect(await popup.locator(".brand-row").boundingBox()).toEqual(header);
+    expect(
+      await popup.getByRole("button", { name: "Lock wallet" }).boundingBox(),
+    ).toEqual(lock);
+    expect(
+      await popup.evaluate(
+        () =>
+          document.documentElement.scrollHeight <= innerHeight &&
+          document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await expect(
+      popup.getByRole("button", { name: "Export imported key" }),
+    ).toBeVisible();
+    if (width === 380)
+      await popup.screenshot({
+        path: "artifacts/settings-chrome.png",
+        fullPage: true,
+      });
+    await popup.getByRole("button", { name: "Back", exact: true }).click();
+  }
 });
 
 test("account menu supports keyboard selection and dismissal", async () => {
