@@ -373,7 +373,6 @@ function settings() {
               key: "privateKey",
               label: "Private key",
               type: "password",
-              help: "Imported keys are not recovered by your recovery phrase. Keep a separate backup. Use test keys only.",
             },
           ],
           "Import key",

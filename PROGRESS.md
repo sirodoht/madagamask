@@ -145,3 +145,7 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Back now returns to Settings from connected sites, network/account/password/auto-lock/reset forms, and both backup/export screens, including the revealed-secret view. Back on Settings still returns home.
 - Lint, typecheck, both package checks, and three targeted Chrome flows pass. Navigation coverage opens and backs out of all ten settings destinations and both revealed-secret views, verifying the secret is removed on return. Both browser distributions and archives rebuilt.
+
+### Private-key import wording — 2026-10-31
+
+- Removed the backup/test-key help text from the private-key import form. Lint and both package checks pass; both distributions and archives rebuilt. No behavior changed.
