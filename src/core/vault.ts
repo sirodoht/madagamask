@@ -720,12 +720,16 @@ export class Vault {
       selected: integer(index, 0, data.accounts.length - 1),
     });
   }
-  async rename(name: unknown) {
+  async rename(name: unknown, accountIndex?: unknown) {
     const { data } = this.current();
+    const target =
+      accountIndex === undefined
+        ? data.selected
+        : integer(accountIndex, 0, data.accounts.length - 1);
     await this.save({
       ...data,
       accounts: data.accounts.map((account, index) =>
-        index === data.selected
+        index === target
           ? { ...account, name: text(name, "account name", 60) }
           : account,
       ),

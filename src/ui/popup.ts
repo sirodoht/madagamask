@@ -92,12 +92,16 @@ function fields(
   app.append(form(inputs, label, (values) => attempt(() => action(values))));
   back(returnTo);
 }
-async function command(action: string, params: Record<string, unknown> = {}) {
+async function command(
+  action: string,
+  params: Record<string, unknown> = {},
+  destination: () => void = home,
+) {
   const generation = uiGeneration;
   const next = await rpc<View>(action, params);
   if (generation !== uiGeneration) return;
   state = next;
-  home();
+  destination();
 }
 const passwordField: Field = {
   key: "password",
@@ -163,9 +167,93 @@ function renameWallet(wallet: PublicWallet, returnTo: () => void) {
     "Rename wallet",
     [{ key: "name", label: "Wallet name", value: wallet.name }],
     "Save name",
-    (values) => command("renameWallet", { ...values, walletId: wallet.id }),
+    (values) =>
+      command("renameWallet", { ...values, walletId: wallet.id }, returnTo),
     returnTo,
   );
+}
+function wallets() {
+  screen();
+  const returnHome = () => {
+    home();
+    accountControl.querySelector("button")?.focus();
+  };
+  const top = el("div", undefined, "wallet-screen-heading");
+  top.append(button("Back", returnHome, true), el("h1", "Wallets"));
+  app.append(top);
+  for (const wallet of state.vault.wallets) {
+    const group = el("section", undefined, "wallet-group");
+    group.setAttribute("aria-label", wallet.name);
+    const heading = el("div", undefined, "wallet-row");
+    const title = el("div", undefined, "wallet-title");
+    title.append(
+      el("h2", wallet.name),
+      el("span", walletLabels[wallet.kind], "wallet-kind"),
+    );
+    const rename = button("Rename", () => renameWallet(wallet, wallets), true);
+    rename.className = "wallet-link";
+    rename.setAttribute("aria-label", `Rename wallet ${wallet.name}`);
+    heading.append(title, rename);
+    group.append(heading);
+    state.vault.accounts.forEach((account, index) => {
+      if (account.walletId !== wallet.id) return;
+      const row = el("div", undefined, "wallet-row account-row");
+      const choose = button(
+        account.name,
+        () =>
+          attempt(async () => {
+            await command("selectAccount", { index });
+            accountControl.querySelector("button")?.focus();
+          }),
+        true,
+      );
+      choose.className = "account-option";
+      choose.setAttribute(
+        "aria-pressed",
+        String(index === state.vault.selected),
+      );
+      choose.setAttribute("aria-label", `Select account ${account.name}`);
+      const renameAccount = button(
+        "Rename",
+        () =>
+          fields(
+            "Rename account",
+            [{ key: "name", label: "Account name", value: account.name }],
+            "Save name",
+            (values) => command("renameAccount", { ...values, index }, wallets),
+            wallets,
+          ),
+        true,
+      );
+      renameAccount.className = "wallet-link";
+      renameAccount.setAttribute(
+        "aria-label",
+        `Rename account ${account.name}`,
+      );
+      row.append(choose, renameAccount);
+      group.append(row);
+    });
+    const actions = el("div", undefined, "wallet-row wallet-actions");
+    if (wallet.kind !== "privateKey") {
+      const add = button(
+        "+ Add account",
+        () => addAccount(wallet, wallets),
+        true,
+      );
+      add.className = "wallet-link";
+      actions.append(add);
+    }
+    const exportWallet = button(
+      "Back up wallet",
+      () => backup(wallet, wallets),
+      true,
+    );
+    exportWallet.className = "wallet-link";
+    actions.append(exportWallet);
+    group.append(actions);
+    app.append(group);
+  }
+  app.append(button("+ Add wallet", () => addWallet(wallets), true));
 }
 function addWallet(returnTo: () => void = home) {
   screen("Add wallet");
@@ -795,19 +883,7 @@ function home() {
     brand.hidden = true;
     accountControl.hidden = false;
     const account = vault.accounts[vault.selected];
-    const menu = el("div", undefined, "account-menu");
-    menu.id = "account-menu";
-    menu.popover = "auto";
-    menu.setAttribute("role", "menu");
-    menu.setAttribute("aria-label", "Accounts");
-    const select = button(
-      account?.name ?? "Account",
-      () => {
-        menu.togglePopover();
-        if (menu.matches(":popover-open")) selectedOption?.focus();
-      },
-      true,
-    );
+    const select = button(account?.name ?? "Account", wallets, true);
     const selectedLabel = el(
       "span",
       account?.name ?? "Account",
@@ -818,208 +894,14 @@ function home() {
     select.classList.add("account-toggle");
     select.setAttribute("aria-label", "Account");
     select.setAttribute("aria-describedby", selectedLabel.id);
-    select.setAttribute("aria-haspopup", "menu");
-    select.setAttribute("aria-controls", menu.id);
-    select.setAttribute("aria-expanded", "false");
-    const options: HTMLButtonElement[] = [];
-    let selectedOption: HTMLButtonElement | undefined;
-    const menuAction = (
-      label: string,
-      action: () => void,
-      className = "account-option",
-    ) => {
-      const item = button(
-        label,
-        () => {
-          menu.hidePopover();
-          action();
-        },
-        true,
-      );
-      item.className = className;
-      item.setAttribute("role", "menuitem");
-      item.tabIndex = -1;
-      options.push(item);
-      return item;
-    };
-    for (const wallet of vault.wallets) {
-      const members = vault.accounts
-        .map((account, index) => ({ account, index }))
-        .filter(({ account }) => account.walletId === wallet.id);
-      const group = el("div", undefined, "account-group");
-      group.setAttribute("role", "group");
-      group.setAttribute("aria-label", wallet.name);
-      const heading = el("div", undefined, "account-group-heading");
-      const title = el("div", undefined, "wallet-title");
-      title.append(
-        el("h2", wallet.name),
-        el("span", walletLabels[wallet.kind], "wallet-kind"),
-      );
-      const submenu = el("div", undefined, "wallet-menu");
-      submenu.id = `wallet-menu-${wallet.id}`;
-      submenu.popover = "auto";
-      submenu.setAttribute("role", "menu");
-      submenu.setAttribute("aria-label", `${wallet.name} actions`);
-      const manage = button(
-        "⋯",
-        () => {
-          submenu.togglePopover();
-          if (submenu.matches(":popover-open")) items[0]?.focus();
-        },
-        true,
-      );
-      manage.id = `manage-${wallet.id}`;
-      manage.className = "wallet-manage";
-      manage.tabIndex = -1;
-      manage.setAttribute("role", "menuitem");
-      manage.setAttribute("aria-label", `Manage ${wallet.name}`);
-      manage.setAttribute("aria-haspopup", "menu");
-      manage.setAttribute("aria-controls", submenu.id);
-      manage.setAttribute("aria-expanded", "false");
-      options.push(manage);
-      const returnTo = () => {
-        home();
-        (document.getElementById("account-menu") as HTMLElement).showPopover();
-        const trigger = document.getElementById(manage.id);
-        trigger?.scrollIntoView({ block: "nearest" });
-        trigger?.click();
-      };
-      const items: HTMLButtonElement[] = [];
-      const action = (label: string, run: () => void) => {
-        const item = button(
-          label,
-          () => {
-            menu.hidePopover();
-            run();
-          },
-          true,
-        );
-        item.className = "account-option";
-        item.setAttribute("role", "menuitem");
-        item.tabIndex = -1;
-        items.push(item);
-        submenu.append(item);
-      };
-      if (wallet.kind !== "privateKey")
-        action("Add account", () => addAccount(wallet, returnTo));
-      action("Rename wallet", () => renameWallet(wallet, returnTo));
-      action("Back up wallet", () => backup(wallet, returnTo));
-      submenu.addEventListener("beforetoggle", (event) => {
-        const open = (event as ToggleEvent).newState === "open";
-        manage.setAttribute("aria-expanded", String(open));
-        if (!open) return;
-        const bounds = manage.getBoundingClientRect();
-        const width = Math.min(192, innerWidth - 16);
-        const height = items.length * 44 + 10;
-        submenu.style.width = `${width}px`;
-        submenu.style.left = `${Math.max(8, Math.min(bounds.right - width, innerWidth - width - 8))}px`;
-        submenu.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, innerHeight - height - 8))}px`;
-        submenu.style.maxHeight = `${innerHeight - 16}px`;
-      });
-      manage.addEventListener("keydown", (event) => {
-        if (event.key !== "ArrowRight") return;
-        event.preventDefault();
-        event.stopPropagation();
-        submenu.showPopover();
-        items[0]?.focus();
-      });
-      submenu.addEventListener("keydown", (event) => {
-        event.stopPropagation();
-        const current = items.indexOf(
-          document.activeElement as HTMLButtonElement,
-        );
-        let next = current;
-        if (event.key === "ArrowDown") next = (current + 1) % items.length;
-        else if (event.key === "ArrowUp")
-          next = (current - 1 + items.length) % items.length;
-        else if (event.key === "Home") next = 0;
-        else if (event.key === "End") next = items.length - 1;
-        else if (["Escape", "ArrowLeft", "Tab"].includes(event.key)) {
-          event.preventDefault();
-          submenu.hidePopover();
-          manage.focus();
-          return;
-        } else return;
-        event.preventDefault();
-        items[next]?.focus();
-      });
-      heading.append(title, manage, submenu);
-      group.append(heading);
-      for (const { account, index } of members) {
-        const option = button(
-          account.name,
-          () => {
-            menu.hidePopover();
-            void attempt(async () => {
-              await command("selectAccount", { index });
-              accountControl.querySelector("button")?.focus();
-            });
-          },
-          true,
-        );
-        option.className = "account-option";
-        option.setAttribute("role", "menuitemradio");
-        option.setAttribute("aria-label", option.textContent ?? "");
-        option.setAttribute("aria-checked", String(index === vault.selected));
-        option.tabIndex = -1;
-        if (index === vault.selected) selectedOption = option;
-        options.push(option);
-        group.append(option);
-      }
-      if (wallet.kind !== "privateKey")
-        group.append(
-          menuAction(
-            "+ Add account",
-            () => addAccount(wallet),
-            "account-option wallet-add-account",
-          ),
-        );
-      menu.append(group);
-    }
-    menu.append(
-      menuAction(
-        "+ Add wallet",
-        () => addWallet(),
-        "account-option wallet-add",
-      ),
-    );
-    menu.addEventListener("beforetoggle", (event) => {
-      const open = (event as ToggleEvent).newState === "open";
-      select.setAttribute("aria-expanded", String(open));
-      if (!open) return;
-      const bounds = select.getBoundingClientRect();
-      menu.style.left = `${bounds.left}px`;
-      menu.style.top = `${bounds.bottom + 4}px`;
-      menu.style.width = `${Math.min(360, innerWidth - bounds.left - 16)}px`;
-      menu.style.maxHeight = `${Math.max(44, Math.min(480, innerHeight - bounds.bottom - 20))}px`;
-    });
     select.addEventListener("keydown", (event) => {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (event.key === "ArrowDown") {
         event.preventDefault();
-        menu.showPopover();
-        selectedOption?.focus();
+        wallets();
+        app.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
       }
     });
-    menu.addEventListener("keydown", (event) => {
-      const current = options.indexOf(
-        document.activeElement as HTMLButtonElement,
-      );
-      let next = current;
-      if (event.key === "ArrowDown") next = (current + 1) % options.length;
-      else if (event.key === "ArrowUp")
-        next = (current - 1 + options.length) % options.length;
-      else if (event.key === "Home") next = 0;
-      else if (event.key === "End") next = options.length - 1;
-      else if (event.key === "Escape" || event.key === "Tab") {
-        menu.hidePopover();
-        select.focus();
-        if (event.key === "Escape") event.preventDefault();
-        return;
-      } else return;
-      event.preventDefault();
-      options[next]?.focus();
-    });
-    accountControl.replaceChildren(select, menu);
+    accountControl.replaceChildren(select);
     if (account) {
       const value = el("span", account.address, "address-value");
       const feedback = el("span", "", "address-feedback");

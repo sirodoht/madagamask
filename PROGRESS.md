@@ -188,3 +188,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Replaced the full-screen wallet management page with a small nested dropdown anchored to the three-dot button. The account list stays visible; actions remain scoped to that wallet. Back from an action reopens its dropdown.
 - Added keyboard navigation, Escape/Left dismissal with focus restoration, outside-click dismissal, and viewport-aware positioning. Private-key wallets omit Add account.
 - Lint/typecheck, both package checks, and three targeted Chrome browser flows pass, including compact dimensions at 320px width, keyboard/outside dismissal, rename, and exact-wallet backup. Inspected Chrome and Firefox 159 screenshots and confirmed nested dismissal in Firefox. Both browser distributions and archives rebuilt.
+
+### Dedicated wallet selector screen — 2026-10-31
+
+- Replaced the account popover and nested action menus with a stable Wallets screen. Wallets retain source labels and child accounts, with visible Rename actions on every wallet/account, wallet backup, conditional Add account, Add wallet, and Back. Selecting an account returns home; renaming or cancelling returns to the list.
+- Account renaming accepts a validated target index so an unselected account can be renamed without switching the signing account. Existing Settings renaming still targets the selected account. Renames persist across reload/unlock.
+- Lint/typecheck, 39 unit tests, both package checks, and three targeted Chrome flows pass. Coverage includes stable outside clicks, keyboard selection, unselected account rename, invalid rename indices, persistence, wallet-specific backups and return navigation. Inspected Chrome and Firefox 159 screens. Both distributions and archives rebuilt.

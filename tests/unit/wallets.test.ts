@@ -271,3 +271,22 @@ test("corrupt wallet ownership and future payload formats preserve encrypted sto
     assert.deepEqual(store.data.get("vault"), encrypted);
   }
 });
+
+test("renaming a specified account preserves selection and rejects invalid indices", async () => {
+  const store = memory();
+  const vault = new Vault(store.storage);
+  await vault.create(password, phrase);
+  await vault.addWallet("Single", "privateKey", key);
+  const before = await vault.view();
+  await vault.rename("Personal account", 0);
+  assert.equal((await vault.view()).selected, before.selected);
+  assert.equal((await vault.view()).accounts[0]?.name, "Personal account");
+  assert.equal((await vault.view()).accounts[1]?.name, "Account 1");
+  assert.equal(vault.account().address, before.accounts[1]?.address);
+  for (const index of [-1, 2, 0.5, "0"])
+    await assert.rejects(vault.rename("Bad", index));
+  vault.lock();
+  await vault.unlock(password);
+  assert.equal((await vault.view()).accounts[0]?.name, "Personal account");
+  assert.equal((await vault.view()).selected, before.selected);
+});

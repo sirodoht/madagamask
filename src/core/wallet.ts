@@ -197,7 +197,7 @@ export class Wallet {
         await this.vault.select(p.index);
         break;
       case "renameAccount":
-        await this.vault.rename(p.name);
+        await this.vault.rename(p.name, p.index);
         break;
       case "autoLock":
         await this.vault.autoLock(p.minutes);

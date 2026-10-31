@@ -222,19 +222,6 @@ small {
 .account-toggle::after {
   content: "⌄";
 }
-.account-menu,
-.wallet-menu {
-  position: fixed;
-  inset: auto;
-  margin: 0;
-  padding: 4px;
-  overflow-y: auto;
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: 0 8px 24px #202b2620;
-}
 .account-option {
   display: flex;
   align-items: center;
@@ -252,12 +239,12 @@ small {
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.account-option[aria-checked="true"],
+.account-option[aria-pressed="true"],
 .account-option:hover,
 .account-option:focus-visible {
   background: var(--color-accent-soft);
 }
-.account-option[aria-checked="true"]::after {
+.account-option[aria-pressed="true"]::after {
   content: "✓";
 }
 .account-option:focus-visible {
@@ -322,16 +309,43 @@ main h1 {
   overflow-wrap: anywhere;
 }
 
-.account-group + .account-group {
-  margin-top: 4px;
-  border-top: 1px solid var(--color-border);
+.wallet-group {
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
 }
-.account-group-heading {
+.wallet-screen-heading,
+.wallet-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 4px 8px;
+}
+.wallet-row {
+  justify-content: space-between;
+}
+.wallet-screen-heading .button {
+  padding: 8px 12px;
+}
+.wallet-link {
+  padding: 8px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.wallet-link:hover {
+  background: var(--color-accent-soft);
+}
+.wallet-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+.wallet-title h2 {
+  font-size: 0.875rem;
 }
 .wallet-title {
   display: flex;
@@ -343,38 +357,12 @@ main h1 {
   color: var(--color-muted);
   font-size: 0.75rem;
 }
-.wallet-manage {
-  min-width: 36px;
-  min-height: 36px;
-  border: 0;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font-size: 1.25rem;
-}
-.wallet-manage:hover {
-  background: var(--color-accent-soft);
-}
-.account-group .account-option {
-  padding-left: 20px;
-}
-.wallet-add-account {
-  color: var(--color-accent);
-  font-size: 0.8125rem;
-}
-.wallet-add {
-  border-top: 1px solid var(--color-border);
-  border-radius: 0;
-  font-weight: 600;
-}
-.account-group-heading h2 {
-  font-size: 0.8125rem;
-}
 .settings-account {
   font-size: 0.75rem;
 }
 
-.wallet-menu .account-option {
-  padding: 8px;
+.wallet-row .wallet-title,
+.account-row .account-option {
+  flex: 1;
+  min-width: 0;
 }
