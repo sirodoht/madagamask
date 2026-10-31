@@ -315,7 +315,6 @@ main h1 {
   border-radius: 0.75rem;
   background: var(--color-surface);
 }
-.wallet-screen-heading,
 .wallet-row {
   display: flex;
   align-items: center;
@@ -323,9 +322,6 @@ main h1 {
 }
 .wallet-row {
   justify-content: space-between;
-}
-.wallet-screen-heading .button {
-  padding: 8px 12px;
 }
 .row-menu {
   flex-shrink: 0;

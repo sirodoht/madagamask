@@ -205,3 +205,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Replaced wallet source text labels with small local SVG icons: document for mnemonic, sprout for seed, and key for private key. Hovering or focusing an icon explains the material held and which accounts it restores. Accessible source names and descriptions remain available to screen readers.
 - Lint/typecheck, both package checks, and the Chrome multi-source wallet flow pass, including all three icons, hover/focus explanations, and tooltip bounds. Inspected Chrome icons and Firefox 159 tooltip. Both browser distributions and archives rebuilt.
+
+### Wallets Back button placement — 2026-10-31
+
+- Moved Back from the Wallets heading to directly below Add wallet. Returning home still restores focus to the account selector.
+- Lint/typecheck, both package checks, and the existing Chrome wallet selection/rename/navigation flow pass. Both browser distributions and archives rebuilt.

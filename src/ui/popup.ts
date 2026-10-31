@@ -288,9 +288,7 @@ function wallets() {
     home();
     accountControl.querySelector("button")?.focus();
   };
-  const top = el("div", undefined, "wallet-screen-heading");
-  top.append(button("Back", returnHome, true), el("h1", "Wallets"));
-  app.append(top);
+  app.append(el("h1", "Wallets"));
   for (const wallet of state.vault.wallets) {
     const group = el("section", undefined, "wallet-group");
     group.setAttribute("aria-label", wallet.name);
@@ -348,6 +346,7 @@ function wallets() {
     app.append(group);
   }
   app.append(button("+ Add wallet", () => addWallet(wallets), true));
+  back(returnHome);
 }
 function addWallet(returnTo: () => void = home) {
   screen("Add wallet");
