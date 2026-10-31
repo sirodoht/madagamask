@@ -227,3 +227,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Network changes no longer show the generic Working status row, preventing its temporary popup-height expansion. Balance loading remains in place, and errors still appear normally.
 - Removed the selected account’s checkmark; its full-row highlight remains, along with accessible pressed state.
 - Lint/typecheck and both package checks pass. The Chrome local-chain browser flow passes with a mutation observer confirming no transient Working message during network selection, and the correct balance loads. Both browser distributions and archives rebuilt.
+
+### Separate global settings from wallet actions — 2026-10-31
+
+- Settings now contains only phishing-list updates, connected sites, network configuration, password changes, auto-lock, and Reset all wallets. Removed the selected-wallet subtitle and wallet/account management shortcuts. The reset form and delete button explicitly name all local wallets.
+- Added Back up wallet to each wallet’s three-dot menu, bound to that wallet’s ID. Wallet rename/add-account and account rename stay in their existing menus; Add wallet remains below the account list. Back from backup returns to the list.
+- Lint/typecheck, both package checks, and four Chrome browser flows pass. Coverage verifies global-only Settings/navigation, wallet creation and backup confirmation, and revealing a nonselected seed wallet’s exact backup without switching accounts. Inspected compact Settings. Both distributions and archives rebuilt.

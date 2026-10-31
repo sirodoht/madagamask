@@ -215,8 +215,19 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
           document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    for (const name of [
+      "Back up wallet",
+      "Rename wallet",
+      "Rename account",
+      "Add wallet",
+      "Add account",
+    ])
+      await expect(
+        popup.getByRole("button", { name, exact: true }),
+      ).toHaveCount(0);
+    await expect(popup.locator(".settings-account")).toHaveCount(0);
     await expect(
-      popup.getByRole("button", { name: "Back up wallet" }),
+      popup.getByRole("button", { name: "Reset all wallets", exact: true }),
     ).toBeVisible();
     if (width === 380)
       await popup.screenshot({
@@ -227,34 +238,15 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
       for (const label of [
         "Connected sites",
         "Add or edit network",
-        "Back up wallet",
-        "Rename wallet",
-        "Add wallet",
-        "Rename account",
         "Change password",
         "Auto-lock",
-        "Reset wallet",
+        "Reset all wallets",
       ]) {
         await popup.getByRole("button", { name: label, exact: true }).click();
         await popup.getByRole("button", { name: "Back", exact: true }).click();
         await expect(
           popup.getByRole("heading", { name: "Settings", exact: true }),
         ).toBeVisible();
-      }
-      for (const label of ["Back up wallet"]) {
-        await popup.getByRole("button", { name: label, exact: true }).click();
-        await popup
-          .getByLabel("Password", { exact: true })
-          .fill("disposable-settings-password");
-        await popup
-          .getByRole("button", { name: "Reveal backup", exact: true })
-          .click();
-        await expect(popup.locator(".secret")).toBeVisible();
-        await popup.getByRole("button", { name: "Back", exact: true }).click();
-        await expect(
-          popup.getByRole("heading", { name: "Settings", exact: true }),
-        ).toBeVisible();
-        await expect(popup.locator(".secret")).toHaveCount(0);
       }
     }
     await popup.getByRole("button", { name: "Back", exact: true }).click();
@@ -336,6 +328,10 @@ test("wallet screen selects accounts and renames without changing selection", as
     .click();
   await expect(
     popup.getByRole("menuitem", { name: "Rename wallet", exact: true }),
+  ).toBeFocused();
+  await popup.keyboard.press("ArrowDown");
+  await expect(
+    popup.getByRole("menuitem", { name: "Back up wallet", exact: true }),
   ).toBeFocused();
   await popup.keyboard.press("ArrowDown");
   await expect(
@@ -430,8 +426,13 @@ test("create, back up, lock, and restore a wallet through the production UI", as
   await popup.getByRole("button", { name: "Create test wallet" }).click();
   await expect(popup.getByLabel("Account", { exact: true })).toBeVisible();
   const address = await popup.locator(".address").textContent();
-  await popup.getByRole("button", { name: "Settings", exact: true }).click();
-  await popup.getByRole("button", { name: "Back up wallet" }).click();
+  await popup.getByRole("button", { name: "Account", exact: true }).click();
+  await popup
+    .getByRole("button", { name: "Wallet actions for Wallet 1", exact: true })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Back up wallet", exact: true })
+    .click();
   await popup
     .getByLabel("Password", { exact: true })
     .fill("a-disposable-test-password");
@@ -1134,6 +1135,20 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     popup.getByRole("button", { name: "Rename", exact: true }),
   ).toHaveCount(0);
   await popup
+    .getByRole("button", { name: "Wallet actions for Trading", exact: true })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Back up wallet", exact: true })
+    .click();
+  await popup.getByLabel("Password", { exact: true }).fill(password);
+  await popup
+    .getByRole("button", { name: "Reveal backup", exact: true })
+    .click();
+  await expect(popup.locator(".secret")).toHaveText(`0x${seed}`);
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(popup.locator(".secret")).toHaveCount(0);
+  await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
+  await popup
     .getByRole("button", { name: "+ Add wallet", exact: true })
     .click();
   await popup.getByRole("button", { name: "Back", exact: true }).click();
@@ -1149,9 +1164,12 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     .getByRole("button", { name: "Create wallet", exact: true })
     .click();
   await expect(selector).toHaveText("Account 1");
-  await popup.getByRole("button", { name: "Settings", exact: true }).click();
+  await selector.click();
   await popup
-    .getByRole("button", { name: "Back up wallet", exact: true })
+    .getByRole("button", { name: "Wallet actions for Fresh", exact: true })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Back up wallet", exact: true })
     .click();
   await popup.getByLabel("Password", { exact: true }).fill(password);
   await popup

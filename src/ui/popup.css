@@ -408,9 +408,6 @@ main h1 {
 .wallet-kind:focus .wallet-kind-tooltip {
   visibility: visible;
 }
-.settings-account {
-  font-size: 0.75rem;
-}
 
 .wallet-row .wallet-title,
 .account-row .account-option {

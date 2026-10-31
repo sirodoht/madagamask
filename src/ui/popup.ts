@@ -192,12 +192,6 @@ function walletKindIcon(kind: WalletKind) {
   icon.append(svg, tooltip);
   return icon;
 }
-function selectedWallet() {
-  const id = state.vault.accounts[state.vault.selected]?.walletId;
-  const wallet = state.vault.wallets.find((wallet) => wallet.id === id);
-  if (!wallet) throw new Error("Wallet not found.");
-  return wallet;
-}
 function addAccount(wallet: PublicWallet, returnTo: () => void = home) {
   fields(
     `Add account · ${wallet.name}`,
@@ -345,6 +339,7 @@ function wallets() {
     title.append(el("h2", wallet.name), walletKindIcon(wallet.kind));
     const walletActions: [string, () => void][] = [
       ["Rename wallet", () => renameWallet(wallet, wallets)],
+      ["Back up wallet", () => backup(wallet)],
     ];
     if (wallet.kind !== "privateKey")
       walletActions.push(["Add account", () => addAccount(wallet, wallets)]);
@@ -431,7 +426,7 @@ function addWallet(returnTo: () => void = home) {
   );
   back(returnTo);
 }
-function backup(wallet = selectedWallet(), returnTo: () => void = settings) {
+function backup(wallet: PublicWallet, returnTo: () => void = wallets) {
   fields(
     `Back up ${wallet.name}`,
     [{ key: "password", label: "Password", type: "password" }],
@@ -596,14 +591,6 @@ function approval(item: Approval) {
 }
 function settings() {
   screen("Settings");
-  const wallet = selectedWallet();
-  app.append(
-    el(
-      "p",
-      `${wallet.name} · ${walletLabels[wallet.kind]}`,
-      "settings-account",
-    ),
-  );
   const actions = el("div", undefined, "action-grid settings-grid");
   app.append(actions);
   actions.append(
@@ -640,29 +627,6 @@ function settings() {
           "Verify and save network",
           (values) =>
             command("addNetwork", { ...values, id: Number(values.id) }),
-          settings,
-        ),
-      true,
-    ),
-  );
-  actions.append(
-    button("Back up wallet", () => backup(wallet), true),
-    button("Rename wallet", () => renameWallet(wallet, settings), true),
-    button("Add wallet", () => addWallet(settings), true),
-  );
-  if (wallet.kind !== "privateKey")
-    actions.append(
-      button("Add account", () => addAccount(wallet, settings), true),
-    );
-  actions.append(
-    button(
-      "Rename account",
-      () =>
-        fields(
-          "Rename account",
-          [{ key: "name", label: "Account name" }],
-          "Save name",
-          (values) => command("renameAccount", values),
           settings,
         ),
       true,
@@ -708,10 +672,10 @@ function settings() {
   );
   actions.append(
     button(
-      "Reset wallet",
+      "Reset all wallets",
       () =>
         fields(
-          "Reset wallet",
+          "Reset all wallets",
           [
             passwordField,
             {
@@ -720,7 +684,7 @@ function settings() {
               help: "This removes all local wallets and accounts. Make sure you have a backup of each wallet.",
             },
           ],
-          "Delete local wallet",
+          "Delete all local wallets",
           (values) => command("reset", values),
           settings,
         ),
