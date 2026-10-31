@@ -145,6 +145,13 @@ Unsupported today and needed by real dapps. Old or deprecated methods, such as `
 - [ ] `wallet_watchAsset`.
 - [ ] WalletConnect.
 
+## Future features
+
+Both rely on outside services, which would see the user's transactions. Choose a provider and document its privacy and availability behavior first.
+
+- [ ] Show estimated balance changes before signing, such as "-1 ETH, +3000 USDC".
+- [ ] Flag known malicious transaction patterns.
+
 ## Working rules
 
 - Complete small, reviewable changes and commit each completed change.
