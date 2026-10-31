@@ -58,6 +58,55 @@ test("sites get no accounts until approval; grants are origin scoped", async () 
   await wallet.run("revoke", { origin: site.origin });
   assert.deepEqual(await wallet.dapps.accounts(site.origin), []);
 });
+
+test("mainnet rejects native sends and all supported signature methods", async () => {
+  const wallet = await setup();
+  await wallet.run("selectNetwork", { id: 1 });
+  const connect = await pending(wallet, { method: "eth_requestAccounts" });
+  await wallet.run("approveDapp", { id: connect.approval.id });
+  const [account] = (await connect.result()) as string[];
+  assert.ok(account);
+  await assert.rejects(
+    wallet.run("prepareSend", { to: account, amount: "0.001" }),
+    /Signing is disabled/,
+  );
+  for (const request of [
+    {
+      method: "eth_sendTransaction",
+      params: [{ from: account, to: account, value: "0x1", chainId: "0x1" }],
+    },
+    { method: "personal_sign", params: ["0x6869", account] },
+    {
+      method: "eth_signTypedData_v4",
+      params: [
+        account,
+        {
+          domain: { name: "Review fixture", chainId: 1 },
+          types: { Message: [{ name: "value", type: "uint256" }] },
+          primaryType: "Message",
+          message: { value: 1 },
+        },
+      ],
+    },
+  ]) {
+    await assert.rejects(
+      wallet.dapps.request(request, site),
+      /Signing is (disabled|limited)/,
+    );
+    assert.deepEqual(wallet.dapps.approvals(), []);
+  }
+  for (const method of [
+    "eth_sign",
+    "eth_signTransaction",
+    "eth_sendRawTransaction",
+    "wallet_sendCalls",
+  ])
+    await assert.rejects(
+      wallet.dapps.request({ method, params: [] }, site),
+      /not supported/,
+    );
+  assert.deepEqual(await wallet.transactions.list(), []);
+});
 test("message approval binds the original payload; lock rejects pending requests", async () => {
   const wallet = await setup();
   const connect = await pending(wallet, { method: "eth_requestAccounts" });

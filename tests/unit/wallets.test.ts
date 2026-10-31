@@ -145,6 +145,44 @@ test("mnemonic and raw seed restore the same Ethereum child accounts", async () 
   await assert.rejects(single.addAccount("Sibling"), /one account/);
 });
 
+test("exported recovery material restores independently verified child addresses", async () => {
+  // Public Anvil fixture, cross-checked with Foundry cast wallet address (indices 0–2).
+  const expected = [
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+  ];
+  for (const kind of ["mnemonic", "seed"] as const) {
+    const original = new Vault(memory().storage);
+    await original.create(
+      password,
+      kind === "mnemonic" ? phrase : bytesToHex(mnemonicToSeedSync(phrase)),
+      kind,
+    );
+    const backup = await original.reveal(password, undefined, "wallet-1");
+    const recovered = new Vault(memory().storage);
+    await recovered.create("different-recovery-password", backup, kind);
+    await recovered.addAccount("Restored two");
+    await recovered.addAccount("Restored three");
+    assert.deepEqual(
+      (await recovered.view()).accounts.map((item) => item.address),
+      expected,
+    );
+  }
+  const single = new Vault(memory().storage);
+  await single.create(password, key, "privateKey");
+  const recovered = new Vault(memory().storage);
+  await recovered.create(
+    "different-recovery-password",
+    await single.reveal(password, undefined, "wallet-1"),
+    "privateKey",
+  );
+  assert.equal(
+    recovered.account().address,
+    "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+  );
+});
+
 test("wallet-scoped derivation, rename, backup and session restoration work across all sources", async () => {
   const store = memory();
   const session = memory();

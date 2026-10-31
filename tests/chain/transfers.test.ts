@@ -4,7 +4,13 @@ import { readFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { after, before, test } from "node:test";
-import { createWalletClient, custom, erc20Abi, type Hex } from "viem";
+import {
+  createWalletClient,
+  custom,
+  erc20Abi,
+  type Hex,
+  parseEther,
+} from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { client, type Network, rpc } from "../../src/core/networks.ts";
 import {
@@ -120,6 +126,32 @@ test("insufficient funds and changed account invalidate sends", async () => {
     /expired/,
   );
   await wallet.run("unlock", { password: "disposable-test-password" });
+});
+
+test("broadcast transaction remains bound to the reviewed account, chain, recipient, value and maximum fee", async () => {
+  const { wallet } = await freshWallet();
+  const preview = (await wallet.run("prepareSend", {
+    to: "0x0000000000000000000000000000000000001234",
+    amount: "0.001",
+  })) as Preview;
+  const reviewed = structuredClone(preview);
+  // Public previews and extra approval parameters must never mutate the signing draft.
+  preview.to = "0x0000000000000000000000000000000000009999";
+  preview.amount = "100";
+  preview.fee = "100";
+  preview.chainId = 1;
+  const sent = (await wallet.run("approveSend", { ...preview })) as Activity;
+  const actual = await client(network).getTransaction({ hash: sent.hash });
+  assert.equal(actual.chainId, reviewed.chainId);
+  assert.equal(actual.from.toLowerCase(), reviewed.from.toLowerCase());
+  assert.equal(actual.to?.toLowerCase(), reviewed.to.toLowerCase());
+  assert.equal(actual.value, parseEther(reviewed.amount));
+  assert.equal(actual.input, reviewed.data);
+  assert.equal(
+    actual.gas * (actual.maxFeePerGas ?? actual.gasPrice),
+    parseEther(reviewed.fee),
+  );
+  assert.equal(actual.nonce, sent.nonce);
 });
 test("pending transactions support fee-bumped cancellation", async () => {
   await rpc(network, "evm_setAutomine", [false]);

@@ -6,24 +6,13 @@ import { parseRequest } from "../shared/messages.ts";
 import { authorize } from "./authorize.ts";
 import { createHandler } from "./handler.ts";
 import { HEARTBEAT_KEY, startHeartbeat } from "./heartbeat.ts";
+import { extensionStorage } from "./storage.ts";
 
 declare const BROWSER_TARGET: "chrome" | "firefox";
 const popupUrl = chrome.runtime.getURL("popup.html");
 const handle = createHandler(chrome.runtime.id, popupUrl);
-// Firefox also defaults session storage to trusted extension contexts only.
-const sessionAccess = chrome.storage.session.setAccessLevel
-  ? chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
-  : Promise.resolve();
 const wallet = new Wallet(
-  {
-    get: async (key) => (await chrome.storage.local.get(key))[key],
-    set: async (key, value) => {
-      await chrome.storage.local.set({ [key]: value });
-    },
-    remove: async (key) => {
-      await chrome.storage.local.remove(key);
-    },
-  },
+  extensionStorage(chrome.storage.local, BROWSER_TARGET === "chrome"),
   async () => {
     const meta = (await (
       await fetch(chrome.runtime.getURL("phishing-meta.json"))
@@ -35,19 +24,9 @@ const wallet = new Wallet(
     ).json()) as string[];
     return { updatedAt: meta.fetchedAt, domains };
   },
-  {
-    get: async (key) => {
-      await sessionAccess;
-      return (await chrome.storage.session.get(key))[key];
-    },
-    set: async (key, value) => {
-      await sessionAccess;
-      await chrome.storage.session.set({ [key]: value });
-    },
-    remove: async (key) => {
-      await chrome.storage.session.remove(key);
-    },
-  },
+  // Firefox session storage is isolated by default, but its local storage is
+  // not. Keep Firefox test-only until local data has an isolated backend.
+  extensionStorage(chrome.storage.session),
 );
 let ready = wallet.ready;
 function endSession() {
@@ -241,7 +220,6 @@ if (BROWSER_TARGET === "chrome") {
   startHeartbeat((timestamp) =>
     chrome.storage.session.set({ [HEARTBEAT_KEY]: timestamp }),
   );
-  void chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 }
 
 let tracking = false;

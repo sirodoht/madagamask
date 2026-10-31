@@ -464,6 +464,70 @@ test("production popup loads, connects, and opens the full view", async () => {
   await expect(tab.getByRole("status")).toHaveText("");
 });
 
+test("Chrome denies content scripts access to vault and unlock-session storage", async () => {
+  const server = createServer((_request, response) =>
+    response.end("<!doctype html><title>Storage boundary</title>"),
+  );
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const bound = server.address();
+  if (!bound || typeof bound === "string") throw new Error("No site port");
+  try {
+    await popup.evaluate(() =>
+      Promise.all([
+        chrome.storage.local.set({ securityProbe: "public-test-marker" }),
+        chrome.storage.session.set({ securityProbe: "public-test-marker" }),
+      ]),
+    );
+    const site = await context.newPage();
+    const cdp = await context.newCDPSession(site);
+    const worlds: { id: number; origin: string; name: string }[] = [];
+    cdp.on("Runtime.executionContextCreated", ({ context }) =>
+      worlds.push(context),
+    );
+    await cdp.send("Runtime.enable");
+    await site.goto(`http://127.0.0.1:${bound.port}`);
+    await expect
+      .poll(() =>
+        worlds.some(
+          (world) => world.origin === `chrome-extension://${extensionId}`,
+        ),
+      )
+      .toBe(true);
+    const world = worlds.find(
+      (world) => world.origin === `chrome-extension://${extensionId}`,
+    );
+    if (!world) throw new Error("No extension content-script world");
+    const result = await cdp.send("Runtime.evaluate", {
+      contextId: world.id,
+      awaitPromise: true,
+      returnByValue: true,
+      expression: `(async () => {
+        const result = {};
+        for (const area of ["local", "session"]) {
+          for (const method of ["get", "set"]) {
+            try {
+              await chrome.storage[area][method](method === "get" ? "securityProbe" : { securityProbeWrite: true });
+              result[area + method] = "allowed";
+            } catch { result[area + method] = "denied"; }
+          }
+        }
+        return result;
+      })()`,
+    });
+    expect(result.exceptionDetails).toBeUndefined();
+    expect(result.result.value).toEqual({
+      localget: "denied",
+      localset: "denied",
+      sessionget: "denied",
+      sessionset: "denied",
+    });
+    await cdp.detach();
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test("malformed messages and role escalation fail closed", async () => {
   const responses = await popup.evaluate(async () => {
     return Promise.all([
