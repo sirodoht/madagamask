@@ -353,3 +353,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - New approval windows align their top and right edges with the browser window containing the requesting tab, in both Chrome and Firefox. Placement uses browser-provided coordinates, including negative coordinates on other monitors; existing approval windows still receive focus rather than being duplicated.
 - Verified Firefox 159.0 in an isolated temporary profile with a disposable wallet: parent left/top/width 0/0/1366, approval 946/0/420. Verified actual Chrome window geometry plus connection/message signing in the browser regression. Native geometry checks use `MADAGAMASK_HEADED=1` with viewport emulation disabled so Playwright does not resize the approval window. Default headless coverage remains unchanged.
 - Lint/typecheck and both package checks pass. Chrome and Firefox distributions and archives rebuilt.
+
+### Signing notice styling — 2026-10-31
+
+- Removed the left accent border from signing notices, retaining the warning background and text treatment.
+- CSS formatting and both package checks pass; Chrome and Firefox distributions and archives rebuilt.
