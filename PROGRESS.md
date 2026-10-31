@@ -248,3 +248,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Reorganized the area below the existing account/address header: compact centered network selector without a separate visible label, larger centered balance with an adjacent refresh icon, equal Send/Receive buttons, and a quieter Tokens/Activity/Settings navigation row.
 - Reserved balance-row space for loading/error feedback and disabled the refresh icon while a request is pending. Network selection keeps its accessible label and pointer cursor; existing automatic balance loading and stale-response guards remain.
 - Lint/typecheck and both package checks pass. Three targeted Chrome flows pass for layout/header continuity, account selection, and local-chain transfers; the transfer flow passes again after final refresh spacing, including refresh with stable layout and 320/380px fit. Inspected final Chrome and Firefox 159 overviews. Both browser distributions and archives rebuilt.
+
+### Balance loading spinner — 2026-10-31
+
+- Replaced visible Loading balance text with a small spinner, retaining an accessible loading description and reduced-motion support. Refresh is hidden while the request is pending and returns on success/error; its reserved space and the balance row keep the layout steady.
+- Lint/typecheck and both package checks pass. The existing Chrome local-chain balance/refresh/transfer flow passes. Firefox 159 inspection confirms a spinner with no visible loading text, hidden refresh, and identical 393px shell height before/after loading. Both distributions and archives rebuilt.

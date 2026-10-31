@@ -354,6 +354,26 @@ main h1 {
   line-height: 1.5;
   letter-spacing: normal;
 }
+.balance-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: balance-spin 0.8s linear infinite;
+}
+@keyframes balance-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .balance-spinner {
+    animation: none;
+  }
+}
 .balance-refresh {
   grid-column: 3;
   width: 36px;
@@ -371,8 +391,7 @@ main h1 {
   background: var(--color-accent-soft);
 }
 .balance-refresh:disabled {
-  opacity: 0.45;
-  cursor: wait;
+  visibility: hidden;
 }
 .wallet-primary-actions .button {
   min-height: 48px;

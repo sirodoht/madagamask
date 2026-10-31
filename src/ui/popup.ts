@@ -1017,7 +1017,7 @@ function home() {
     overview.append(networkSelect);
     app.append(overview);
     if (account) {
-      const balance = el("p", "Loading balance…", "balance");
+      const balance = el("p", undefined, "balance");
       balance.dataset.state = "loading";
       balance.setAttribute("aria-live", "polite");
       const balanceRow = el("div", undefined, "balance-row");
@@ -1030,7 +1030,10 @@ function home() {
         refreshing = true;
         refreshButton.disabled = true;
         balance.dataset.state = "loading";
-        balance.textContent = "Loading balance…";
+        const spinner = el("span", undefined, "balance-spinner");
+        spinner.setAttribute("role", "img");
+        spinner.setAttribute("aria-label", "Loading balance");
+        balance.replaceChildren(spinner);
         try {
           const value = await rpc<{
             amount: string;
