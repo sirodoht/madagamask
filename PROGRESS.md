@@ -258,3 +258,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Added a subtle inset frame around wallet/account three-dot buttons on hover and keyboard focus. The inset styling preserves button dimensions and the full-row highlight.
 - Lint and both package checks pass; inspected the account-menu hover frame in Firefox 159. Both distributions and archives rebuilt.
+
+### Bordered address copy control — 2026-10-31
+
+- Added an overlapping-squares copy icon and subtle rounded border around the full address, with an accent hover state. Copy confirmation stays in place without changing the control's dimensions; the shared home/account-list header retains the complete address.
+- Lint/typecheck, both package checks, and two targeted Chrome browser flows pass, including exact address copying, stable confirmation layout, narrow-width fit, and shared header geometry. Inspected Chrome and Firefox address controls. Both distributions and archives rebuilt.

@@ -272,20 +272,32 @@ small {
 }
 .address-copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  gap: 8px;
   align-items: center;
   justify-items: start;
   width: 100%;
   min-height: 32px;
-  padding: 4px 0 0;
-  border: 0;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   background: transparent;
   color: var(--color-muted);
+  font-size: 0.75rem;
   text-align: left;
   overflow-wrap: anywhere;
   cursor: pointer;
 }
 .address-copy:hover {
   color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.address-copy-icon {
+  grid-area: 1 / 2;
+  width: 16px;
+  height: 16px;
 }
 .address-value,
 .address-feedback {

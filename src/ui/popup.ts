@@ -324,7 +324,24 @@ function accountHeader(onSelect: () => void = wallets) {
       }, 2000);
     });
     address.className = "address address-copy";
-    address.append(value, feedback);
+    const copyIcon = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg",
+    );
+    copyIcon.classList.add("address-copy-icon");
+    copyIcon.setAttribute("viewBox", "0 0 24 24");
+    copyIcon.setAttribute("fill", "none");
+    copyIcon.setAttribute("stroke", "currentColor");
+    copyIcon.setAttribute("stroke-width", "1.7");
+    copyIcon.setAttribute("stroke-linejoin", "round");
+    copyIcon.setAttribute("aria-hidden", "true");
+    const squares = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path",
+    );
+    squares.setAttribute("d", "M8 8h12v12H8ZM16 8V4H4v12h4");
+    copyIcon.append(squares);
+    address.append(value, feedback, copyIcon);
     address.title = "Copy address";
     address.setAttribute("aria-label", `Copy address ${account.address}`);
     accountAddress.hidden = false;
