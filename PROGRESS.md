@@ -164,3 +164,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 ### Remove dropdown backup notices — 2026-10-31
 
 - Removed both backup explanation lines from the account dropdown. Lint and both package checks pass; both distributions and archives rebuilt. Discussing named-wallet/account grouping separately before changing the vault model.
+
+### Named wallets and child accounts — core checkpoint, 2026-10-31
+
+- Added encrypted payload v2 with named wallets holding a mnemonic, raw BIP32 seed, or private key. Accounts reference their owning wallet; mnemonic/seed wallets derive independent Ethereum account indices, while a private-key wallet has one account. Wallet rename, import/create, backup reveal, and confirmation target a stable wallet ID.
+- Legacy vaults migrate in memory without changing account names, addresses, ordering, selection, or encrypted storage on unlock. The next successful mutation writes v2; failed writes preserve the original vault. Session restoration and password changes support all wallet types. New-wallet/account selection invalidates pending approvals.
+- Added migration, failed-write, seed/mnemonic equivalence, per-wallet derivation/backup, multi-source session/password restoration, duplicate/invalid seed, and corrupt ownership tests. UI integration and browser verification are in progress.

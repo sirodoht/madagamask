@@ -1,8 +1,10 @@
 import { validateMnemonic } from "@scure/bip39";
-import { type Address, getAddress, type Hex } from "viem";
+import { type Address, getAddress, type Hex, hexToBytes } from "viem";
 import {
   english,
   generateMnemonic,
+  HDKey,
+  hdKeyToAccount,
   mnemonicToAccount,
   privateKeyToAccount,
 } from "viem/accounts";
@@ -20,23 +22,33 @@ type Envelope = {
   iv: string;
   ciphertext: string;
 };
-type Account = { name: string; index: number; privateKey?: Hex };
+export type WalletKind = "mnemonic" | "seed" | "privateKey";
+type StoredWallet = {
+  id: string;
+  name: string;
+  kind: WalletKind;
+  secret: string;
+  backedUp: boolean;
+};
+type Account = { name: string; index: number; walletId: string };
 type Payload = {
-  version: 1;
-  mnemonic: string;
+  version: 2;
+  wallets: StoredWallet[];
   accounts: Account[];
   selected: number;
-  backedUp: boolean;
   autoLockMinutes: number;
   autoLockPolicy: 1;
 };
+export type PublicWallet = Omit<StoredWallet, "secret">;
 export type PublicAccount = {
   address: Address;
   name: string;
+  walletId: string;
   imported: boolean;
 };
 export type VaultView = {
   state: "not-created" | "locked" | "unlocked";
+  wallets: PublicWallet[];
   accounts: PublicAccount[];
   selected: number;
   backedUp: boolean;
@@ -91,43 +103,131 @@ function phrase(value: unknown): string {
     throw new UserError("Invalid English BIP39 recovery phrase or checksum.");
   return result;
 }
+function walletFor(data: Payload, id = data.accounts[data.selected]?.walletId) {
+  const wallet = data.wallets.find((item) => item.id === id);
+  if (!wallet) throw new UserError("Wallet not found.");
+  return wallet;
+}
+function walletSecret(kind: unknown, value: unknown): string {
+  if (kind === "mnemonic") return phrase(value);
+  const raw = text(value, kind === "seed" ? "seed" : "private key", 130);
+  const hex = (raw.startsWith("0x") ? raw : `0x${raw}`).toLowerCase();
+  if (kind === "seed") {
+    if (!/^0x(?:[0-9a-f]{2}){16,64}$/.test(hex))
+      throw new UserError("Enter a seed of 16–64 bytes in hexadecimal.");
+    HDKey.fromMasterSeed(hexToBytes(hex as Hex));
+  } else if (kind === "privateKey") {
+    if (!/^0x[0-9a-f]{64}$/.test(hex))
+      throw new UserError("Enter a 32-byte private key in hexadecimal.");
+    try {
+      privateKeyToAccount(hex as Hex);
+    } catch {
+      throw new UserError("Invalid private key.");
+    }
+  } else throw new UserError("Unsupported wallet type.");
+  return hex;
+}
 function signer(data: Payload, index = data.selected) {
   const account = data.accounts[index];
   if (!account) throw new UserError("Account not found.");
-  return account.privateKey
-    ? privateKeyToAccount(account.privateKey)
-    : mnemonicToAccount(data.mnemonic, { addressIndex: account.index });
+  const wallet = walletFor(data, account.walletId);
+  if (wallet.kind === "privateKey")
+    return privateKeyToAccount(wallet.secret as Hex);
+  if (wallet.kind === "seed")
+    return hdKeyToAccount(
+      HDKey.fromMasterSeed(hexToBytes(wallet.secret as Hex)),
+      { addressIndex: account.index },
+    );
+  return mnemonicToAccount(wallet.secret, { addressIndex: account.index });
 }
 function parsePayload(value: unknown): Payload {
   const data = record(value);
   if (
-    data.version !== 1 ||
+    ![1, 2].includes(data.version as number) ||
     !Array.isArray(data.accounts) ||
     data.accounts.length < 1 ||
-    data.accounts.length > 100 ||
-    typeof data.backedUp !== "boolean"
+    data.accounts.length > 100
   )
-    throw new UserError("Invalid vault contents.");
-  const accounts = data.accounts.map((entry) => {
-    const account = record(entry);
-    const result: Account = {
-      name: text(account.name, "account name", 60),
-      index: integer(account.index, 0, 99),
-    };
-    if (account.privateKey !== undefined) {
-      result.privateKey = text(account.privateKey, "private key", 66) as Hex;
-      if (!/^0x[0-9a-fA-F]{64}$/.test(result.privateKey))
-        throw new UserError("Invalid private key.");
-      privateKeyToAccount(result.privateKey);
+    throw new UserError("Invalid or unsupported vault contents.");
+  const wallets: StoredWallet[] = [];
+  let accounts: Account[];
+  if (data.version === 1) {
+    if (typeof data.backedUp !== "boolean")
+      throw new UserError("Invalid vault contents.");
+    wallets.push({
+      id: "wallet-1",
+      name: "Wallet 1",
+      kind: "mnemonic",
+      secret: phrase(data.mnemonic),
+      backedUp: data.backedUp,
+    });
+    accounts = data.accounts.map((entry) => {
+      const account = record(entry);
+      const name = text(account.name, "account name", 60);
+      const index = integer(account.index, 0, 99);
+      if (account.privateKey === undefined)
+        return { name, index, walletId: "wallet-1" };
+      const number = wallets.length + 1;
+      const walletId = `wallet-${number}`;
+      wallets.push({
+        id: walletId,
+        name: `Wallet ${number}`,
+        kind: "privateKey",
+        secret: walletSecret("privateKey", account.privateKey),
+        backedUp: true,
+      });
+      return { name, index: 0, walletId };
+    });
+  } else {
+    if (
+      !Array.isArray(data.wallets) ||
+      !data.wallets.length ||
+      data.wallets.length > 100
+    )
+      throw new UserError("Invalid wallet list.");
+    for (const entry of data.wallets) {
+      const wallet = record(entry);
+      if (typeof wallet.backedUp !== "boolean")
+        throw new UserError("Invalid wallet backup state.");
+      wallets.push({
+        id: text(wallet.id, "wallet ID", 60),
+        name: text(wallet.name, "wallet name", 60),
+        kind: wallet.kind as WalletKind,
+        secret: walletSecret(wallet.kind, wallet.secret),
+        backedUp: wallet.backedUp,
+      });
     }
-    return result;
-  });
+    accounts = data.accounts.map((entry) => {
+      const account = record(entry);
+      return {
+        name: text(account.name, "account name", 60),
+        index: integer(account.index, 0, 99),
+        walletId: text(account.walletId, "wallet ID", 60),
+      };
+    });
+  }
+  if (new Set(wallets.map((wallet) => wallet.id)).size !== wallets.length)
+    throw new UserError("Duplicate wallet IDs.");
+  const seen = new Set<string>();
+  for (const account of accounts) {
+    const wallet = wallets.find((item) => item.id === account.walletId);
+    const key = `${account.walletId}:${account.index}`;
+    if (
+      !wallet ||
+      seen.has(key) ||
+      (wallet.kind === "privateKey" && account.index !== 0)
+    )
+      throw new UserError("Invalid account ownership.");
+    seen.add(key);
+  }
+  for (const wallet of wallets)
+    if (!accounts.some((account) => account.walletId === wallet.id))
+      throw new UserError("Wallet has no accounts.");
   return {
-    version: 1,
-    mnemonic: phrase(data.mnemonic),
+    version: 2,
+    wallets,
     accounts,
     selected: integer(data.selected, 0, accounts.length - 1),
-    backedUp: data.backedUp,
     autoLockMinutes:
       data.autoLockPolicy === undefined && data.autoLockMinutes === 5
         ? DEFAULT_AUTO_LOCK_MINUTES
@@ -355,32 +455,54 @@ export class Vault {
         ? data.accounts.map((account, index) => ({
             name: account.name,
             address: getAddress(signer(data, index).address),
-            imported: !!account.privateKey,
+            walletId: account.walletId,
+            imported: walletFor(data, account.walletId).kind === "privateKey",
+          }))
+        : [],
+      wallets: data
+        ? data.wallets.map(({ id, name, kind, backedUp }) => ({
+            id,
+            name,
+            kind,
+            backedUp,
           }))
         : [],
       selected: data?.selected ?? 0,
-      backedUp: data?.backedUp ?? false,
+      backedUp: data ? walletFor(data).backedUp : false,
       autoLockMinutes: data?.autoLockMinutes ?? DEFAULT_AUTO_LOCK_MINUTES,
     };
   }
-  async create(secret: unknown, recovery?: unknown) {
+  async create(
+    secret: unknown,
+    recovery?: unknown,
+    kind: unknown = "mnemonic",
+  ) {
     const epoch = this.epoch;
     if (await this.storage.get(VAULT_KEY))
       throw new UserError(
-        "A wallet already exists. Reset it before importing another.",
+        "A wallet already exists. Use Add wallet to import another.",
       );
-    const mnemonic =
-      recovery === undefined
+    const material = walletSecret(
+      kind,
+      recovery === undefined && kind === "mnemonic"
         ? generateMnemonic(english, 128)
-        : phrase(recovery);
+        : recovery,
+    );
     const salt = crypto.getRandomValues(new Uint8Array(32));
     const key = await derive(password(secret), salt, !!this.sessionStorage);
     const data: Payload = {
-      version: 1,
-      mnemonic,
-      accounts: [{ name: "Account 1", index: 0 }],
+      version: 2,
+      wallets: [
+        {
+          id: "wallet-1",
+          name: "Wallet 1",
+          kind: kind as WalletKind,
+          secret: material,
+          backedUp: recovery !== undefined,
+        },
+      ],
+      accounts: [{ name: "Account 1", index: 0, walletId: "wallet-1" }],
       selected: 0,
-      backedUp: recovery !== undefined,
       autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES,
       autoLockPolicy: 1,
     };
@@ -438,7 +560,7 @@ export class Vault {
     this.persistSession();
     await this.flushSession();
   }
-  async reveal(secret: unknown, importedIndex?: unknown) {
+  async reveal(secret: unknown, importedIndex?: unknown, walletId?: unknown) {
     const epoch = this.epoch;
     this.current();
     const session = await this.decrypt(secret);
@@ -449,13 +571,18 @@ export class Vault {
         session.data.accounts[
           integer(importedIndex, 0, session.data.accounts.length - 1)
         ];
-      if (!account?.privateKey)
-        throw new UserError(
-          "This account is backed up by your recovery phrase.",
-        );
-      return account.privateKey;
+      const wallet = walletFor(session.data, account?.walletId);
+      if (wallet.kind !== "privateKey")
+        throw new UserError("This account is backed up by its wallet.");
+      return wallet.secret;
     }
-    return session.data.mnemonic;
+    // Legacy callers without an explicit wallet retain the original phrase backup.
+    return walletFor(
+      session.data,
+      walletId === undefined
+        ? session.data.wallets[0]?.id
+        : text(walletId, "wallet ID", 60),
+    ).secret;
   }
   private async save(data: Payload) {
     const epoch = this.epoch;
@@ -469,42 +596,122 @@ export class Vault {
     this.persistSession();
     await this.flushSession();
   }
-  async confirmBackup(value: unknown) {
+  async confirmBackup(value: unknown, walletId?: unknown) {
     const { data } = this.current();
-    if (phrase(value) !== data.mnemonic)
-      throw new UserError("The recovery phrase does not match.");
-    await this.save({ ...data, backedUp: true });
+    const wallet = walletFor(
+      data,
+      walletId === undefined ? undefined : text(walletId, "wallet ID", 60),
+    );
+    if (walletSecret(wallet.kind, value) !== wallet.secret)
+      throw new UserError("The backup does not match this wallet.");
+    await this.save({
+      ...data,
+      wallets: data.wallets.map((item) =>
+        item.id === wallet.id ? { ...item, backedUp: true } : item,
+      ),
+    });
   }
-  async addAccount(name: unknown, key?: unknown) {
+  async addWallet(name: unknown, kind: unknown, value?: unknown) {
+    const { data } = this.current();
+    if (data.accounts.length >= 100 || data.wallets.length >= 100)
+      throw new UserError("Account limit reached.");
+    const generated = kind === "mnemonic" && value === undefined;
+    const secret = walletSecret(
+      kind,
+      generated ? generateMnemonic(english, 128) : value,
+    );
+    const wallet: StoredWallet = {
+      id: crypto.randomUUID(),
+      name: text(name, "wallet name", 60),
+      kind: kind as WalletKind,
+      secret,
+      backedUp: !generated,
+    };
+    const next: Payload = {
+      ...data,
+      wallets: [...data.wallets, wallet],
+      accounts: [
+        ...data.accounts,
+        { name: "Account 1", index: 0, walletId: wallet.id },
+      ],
+      selected: data.accounts.length,
+    };
+    this.assertNewAddress(next, data);
+    await this.save(next);
+  }
+  private assertNewAddress(next: Payload, previous: Payload) {
+    const address = signer(next).address;
+    if (
+      previous.accounts.some(
+        (_, index) => signer(previous, index).address === address,
+      )
+    )
+      throw new UserError("This account already exists.");
+  }
+  async addAccount(name: unknown, key?: unknown, walletId?: unknown) {
     const { data } = this.current();
     if (data.accounts.length >= 100)
       throw new UserError("Account limit reached.");
-    const account: Account = {
-      name: text(name, "account name", 60),
-      index: data.accounts.filter((item) => !item.privateKey).length,
-    };
     if (key !== undefined) {
-      const value = text(key, "private key", 66);
-      if (!/^0x[0-9a-fA-F]{64}$/.test(value))
-        throw new UserError("Enter a 0x-prefixed 32-byte private key.");
-      try {
-        privateKeyToAccount(value as Hex);
-      } catch {
-        throw new UserError("Invalid private key.");
-      }
-      account.privateKey = value as Hex;
+      // Preserve the existing import command while representing its key as a wallet.
+      const wallet: StoredWallet = {
+        id: crypto.randomUUID(),
+        name: `Wallet ${data.wallets.length + 1}`,
+        kind: "privateKey",
+        secret: walletSecret("privateKey", key),
+        backedUp: true,
+      };
+      const next: Payload = {
+        ...data,
+        wallets: [...data.wallets, wallet],
+        accounts: [
+          ...data.accounts,
+          {
+            name: text(name, "account name", 60),
+            index: 0,
+            walletId: wallet.id,
+          },
+        ],
+        selected: data.accounts.length,
+      };
+      this.assertNewAddress(next, data);
+      await this.save(next);
+      return;
     }
-    const next = {
+    const wallet = walletFor(
+      data,
+      walletId === undefined ? undefined : text(walletId, "wallet ID", 60),
+    );
+    if (wallet.kind === "privateKey")
+      throw new UserError("This wallet contains one account.");
+    const index =
+      Math.max(
+        ...data.accounts
+          .filter((item) => item.walletId === wallet.id)
+          .map((item) => item.index),
+      ) + 1;
+    if (index > 99) throw new UserError("Account limit reached.");
+    const next: Payload = {
       ...data,
-      accounts: [...data.accounts, account],
+      accounts: [
+        ...data.accounts,
+        { name: text(name, "account name", 60), index, walletId: wallet.id },
+      ],
       selected: data.accounts.length,
     };
-    const address = signer(next).address;
-    if (
-      data.accounts.some((_, index) => signer(data, index).address === address)
-    )
-      throw new UserError("This account already exists.");
+    this.assertNewAddress(next, data);
     await this.save(next);
+  }
+  async renameWallet(walletId: unknown, name: unknown) {
+    const { data } = this.current();
+    const wallet = walletFor(data, text(walletId, "wallet ID", 60));
+    const nextName = text(name, "wallet name", 60);
+    await this.save({
+      ...data,
+      wallets: data.wallets.map((item) =>
+        item.id === wallet.id ? { ...item, name: nextName } : item,
+      ),
+    });
   }
   async select(index: unknown) {
     const { data } = this.current();
@@ -560,8 +767,8 @@ export class Vault {
   }
   account() {
     const { data } = this.current();
-    if (!data.backedUp)
-      throw new UserError("Back up and confirm your recovery phrase first.");
+    if (!walletFor(data).backedUp)
+      throw new UserError("Back up and confirm this wallet first.");
     return signer(data);
   }
   generation() {

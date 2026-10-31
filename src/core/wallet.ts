@@ -64,6 +64,8 @@ export class Wallet {
       [
         "lock",
         "selectAccount",
+        "addAccount",
+        "addWallet",
         "selectNetwork",
         "addNetwork",
         "reset",
@@ -74,6 +76,8 @@ export class Wallet {
       [
         "lock",
         "selectAccount",
+        "addAccount",
+        "addWallet",
         "selectNetwork",
         "addNetwork",
         "reset",
@@ -166,19 +170,28 @@ export class Wallet {
       case "import":
         await this.vault.create(
           p.password,
-          text(p.phrase, "recovery phrase", 500),
+          text(p.secret ?? p.phrase, "wallet secret", 500),
+          p.kind ?? "mnemonic",
         );
         break;
       case "unlock":
         await this.vault.unlock(p.password);
         break;
       case "reveal":
-        return { secret: await this.vault.reveal(p.password, p.index) };
+        return {
+          secret: await this.vault.reveal(p.password, p.index, p.walletId),
+        };
       case "confirmBackup":
-        await this.vault.confirmBackup(p.phrase);
+        await this.vault.confirmBackup(p.phrase, p.walletId);
         break;
       case "addAccount":
-        await this.vault.addAccount(p.name, p.privateKey);
+        await this.vault.addAccount(p.name, p.privateKey, p.walletId);
+        break;
+      case "addWallet":
+        await this.vault.addWallet(p.name, p.kind, p.secret);
+        break;
+      case "renameWallet":
+        await this.vault.renameWallet(p.walletId, p.name);
         break;
       case "selectAccount":
         await this.vault.select(p.index);
