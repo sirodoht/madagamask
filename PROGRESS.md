@@ -194,3 +194,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Replaced the account popover and nested action menus with a stable Wallets screen. Wallets retain source labels and child accounts, with visible Rename actions on every wallet/account, wallet backup, conditional Add account, Add wallet, and Back. Selecting an account returns home; renaming or cancelling returns to the list.
 - Account renaming accepts a validated target index so an unselected account can be renamed without switching the signing account. Existing Settings renaming still targets the selected account. Renames persist across reload/unlock.
 - Lint/typecheck, 39 unit tests, both package checks, and three targeted Chrome flows pass. Coverage includes stable outside clicks, keyboard selection, unselected account rename, invalid rename indices, persistence, wallet-specific backups and return navigation. Inspected Chrome and Firefox 159 screens. Both distributions and archives rebuilt.
+
+### Wallet and account overflow actions — 2026-10-31
+
+- Moved wallet Rename and Add account into each wallet’s compact three-dot menu. Each account has its own three-dot Rename action. Removed Backup and the action footer from wallet cards; backup remains in Settings. Private-key wallet menus omit Add account.
+- Menus support keyboard navigation, focus restoration on Escape, outside-click dismissal, and positioning within the viewport. The underlying Wallets screen remains stable.
+- Lint/typecheck, both package checks, and three targeted Chrome browser flows pass, covering rename targeting, account creation, menu sizing/navigation/dismissal, and removed visible actions. Inspected compact three-wallet Chrome layout and Firefox 159 action menu. Both browser distributions and archives rebuilt.

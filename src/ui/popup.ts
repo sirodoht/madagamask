@@ -172,6 +172,72 @@ function renameWallet(wallet: PublicWallet, returnTo: () => void) {
     returnTo,
   );
 }
+function actionsMenu(label: string, actions: [string, () => void][]) {
+  const wrapper = el("span", undefined, "row-menu");
+  const menu = el("div", undefined, "row-menu-popup");
+  menu.id = `actions-${crypto.randomUUID()}`;
+  menu.popover = "auto";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", label);
+  const trigger = button(
+    "⋯",
+    () => {
+      menu.togglePopover();
+      if (!menu.matches(":popover-open")) return;
+      const bounds = trigger.getBoundingClientRect();
+      const size = menu.getBoundingClientRect();
+      menu.style.left = `${Math.max(8, Math.min(bounds.right - size.width, innerWidth - size.width - 8))}px`;
+      menu.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, innerHeight - size.height - 8))}px`;
+      items[0]?.focus();
+    },
+    true,
+  );
+  trigger.className = "row-menu-trigger";
+  trigger.setAttribute("aria-label", label);
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-controls", menu.id);
+  trigger.setAttribute("aria-expanded", "false");
+  const items = actions.map(([name, run]) => {
+    const item = button(
+      name,
+      () => {
+        menu.hidePopover();
+        run();
+      },
+      true,
+    );
+    item.className = "account-option";
+    item.setAttribute("role", "menuitem");
+    item.tabIndex = -1;
+    return item;
+  });
+  menu.append(...items);
+  menu.addEventListener("beforetoggle", (event) => {
+    trigger.setAttribute(
+      "aria-expanded",
+      String((event as ToggleEvent).newState === "open"),
+    );
+  });
+  menu.addEventListener("keydown", (event) => {
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    let next = current;
+    if (event.key === "ArrowDown") next = (current + 1) % items.length;
+    else if (event.key === "ArrowUp")
+      next = (current - 1 + items.length) % items.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = items.length - 1;
+    else if (["Escape", "Tab"].includes(event.key)) {
+      event.preventDefault();
+      menu.hidePopover();
+      trigger.focus();
+      return;
+    } else return;
+    event.preventDefault();
+    items[next]?.focus();
+  });
+  wrapper.append(trigger, menu);
+  return wrapper;
+}
 function wallets() {
   screen();
   const returnHome = () => {
@@ -190,10 +256,15 @@ function wallets() {
       el("h2", wallet.name),
       el("span", walletLabels[wallet.kind], "wallet-kind"),
     );
-    const rename = button("Rename", () => renameWallet(wallet, wallets), true);
-    rename.className = "wallet-link";
-    rename.setAttribute("aria-label", `Rename wallet ${wallet.name}`);
-    heading.append(title, rename);
+    const walletActions: [string, () => void][] = [
+      ["Rename wallet", () => renameWallet(wallet, wallets)],
+    ];
+    if (wallet.kind !== "privateKey")
+      walletActions.push(["Add account", () => addAccount(wallet, wallets)]);
+    heading.append(
+      title,
+      actionsMenu(`Wallet actions for ${wallet.name}`, walletActions),
+    );
     group.append(heading);
     state.vault.accounts.forEach((account, index) => {
       if (account.walletId !== wallet.id) return;
@@ -213,44 +284,26 @@ function wallets() {
         String(index === state.vault.selected),
       );
       choose.setAttribute("aria-label", `Select account ${account.name}`);
-      const renameAccount = button(
-        "Rename",
-        () =>
-          fields(
+      const accountActions = actionsMenu(
+        `Account actions for ${account.name}`,
+        [
+          [
             "Rename account",
-            [{ key: "name", label: "Account name", value: account.name }],
-            "Save name",
-            (values) => command("renameAccount", { ...values, index }, wallets),
-            wallets,
-          ),
-        true,
+            () =>
+              fields(
+                "Rename account",
+                [{ key: "name", label: "Account name", value: account.name }],
+                "Save name",
+                (values) =>
+                  command("renameAccount", { ...values, index }, wallets),
+                wallets,
+              ),
+          ],
+        ],
       );
-      renameAccount.className = "wallet-link";
-      renameAccount.setAttribute(
-        "aria-label",
-        `Rename account ${account.name}`,
-      );
-      row.append(choose, renameAccount);
+      row.append(choose, accountActions);
       group.append(row);
     });
-    const actions = el("div", undefined, "wallet-row wallet-actions");
-    if (wallet.kind !== "privateKey") {
-      const add = button(
-        "+ Add account",
-        () => addAccount(wallet, wallets),
-        true,
-      );
-      add.className = "wallet-link";
-      actions.append(add);
-    }
-    const exportWallet = button(
-      "Back up wallet",
-      () => backup(wallet, wallets),
-      true,
-    );
-    exportWallet.className = "wallet-link";
-    actions.append(exportWallet);
-    group.append(actions);
     app.append(group);
   }
   app.append(button("+ Add wallet", () => addWallet(wallets), true));

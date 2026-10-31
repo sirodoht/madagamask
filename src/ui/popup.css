@@ -327,22 +327,37 @@ main h1 {
 .wallet-screen-heading .button {
   padding: 8px 12px;
 }
-.wallet-link {
-  padding: 8px;
+.row-menu {
+  flex-shrink: 0;
+}
+.row-menu-trigger {
+  width: 36px;
   min-height: 36px;
+  padding: 4px;
   border: 0;
   border-radius: 0.5rem;
   background: transparent;
-  color: var(--color-accent);
-  font-size: 0.8125rem;
+  color: var(--color-text);
+  font-size: 1.25rem;
   cursor: pointer;
 }
-.wallet-link:hover {
+.row-menu-trigger:hover {
   background: var(--color-accent-soft);
 }
-.wallet-actions {
-  justify-content: flex-start;
-  flex-wrap: wrap;
+.row-menu-popup {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 4px;
+  width: 176px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 8px 24px #202b2620;
 }
 .wallet-title h2 {
   font-size: 0.875rem;

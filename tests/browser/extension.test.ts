@@ -299,16 +299,19 @@ test("wallet screen selects accounts and renames without changing selection", as
       exact: true,
     }),
   ).toBeFocused();
-  await expect(popup.locator("[popover]")).toHaveCount(0);
+  await expect(popup.locator("[popover]:popover-open")).toHaveCount(0);
   await popup.locator("body").click({ position: { x: 4, y: 4 } });
   await expect(
     popup.getByRole("heading", { name: "Wallets", exact: true }),
   ).toBeVisible();
   await popup
     .getByRole("button", {
-      name: "Rename account Private account",
+      name: "Account actions for Private account",
       exact: true,
     })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Rename account", exact: true })
     .click();
   await popup.getByLabel("Account name").fill("gox");
   await popup.getByRole("button", { name: "Save name", exact: true }).click();
@@ -322,7 +325,38 @@ test("wallet screen selects accounts and renames without changing selection", as
     }),
   ).toHaveAttribute("aria-pressed", "true");
   await popup
-    .getByRole("button", { name: "Rename wallet Wallet 1", exact: true })
+    .getByRole("button", { name: "Wallet actions for Wallet 1", exact: true })
+    .click();
+  await expect(
+    popup.getByRole("menuitem", { name: "Rename wallet", exact: true }),
+  ).toBeFocused();
+  await popup.keyboard.press("ArrowDown");
+  await expect(
+    popup.getByRole("menuitem", { name: "Add account", exact: true }),
+  ).toBeFocused();
+  await popup.keyboard.press("Escape");
+  const walletActions = popup.getByRole("button", {
+    name: "Wallet actions for Wallet 1",
+    exact: true,
+  });
+  await expect(walletActions).toBeFocused();
+  await walletActions.click();
+  const menuBounds = await popup
+    .getByRole("menu", { name: "Wallet actions for Wallet 1", exact: true })
+    .boundingBox();
+  expect(menuBounds?.width).toBeLessThanOrEqual(192);
+  expect((menuBounds?.x ?? 0) + (menuBounds?.width ?? 0)).toBeLessThanOrEqual(
+    320,
+  );
+  await popup.screenshot({
+    path: "artifacts/wallet-dots-menu-chrome.png",
+    fullPage: true,
+  });
+  await popup.locator("body").click({ position: { x: 4, y: 4 } });
+  await expect(popup.locator("[popover]:popover-open")).toHaveCount(0);
+  await walletActions.click();
+  await popup
+    .getByRole("menuitem", { name: "Rename wallet", exact: true })
     .click();
   await popup.getByLabel("Wallet name").fill("Personal");
   await popup.getByRole("button", { name: "Save name", exact: true }).click();
@@ -330,7 +364,13 @@ test("wallet screen selects accounts and renames without changing selection", as
     popup.getByRole("region", { name: "Personal", exact: true }),
   ).toBeVisible();
   await popup
-    .getByRole("button", { name: "Rename account Second account", exact: true })
+    .getByRole("button", {
+      name: "Account actions for Second account",
+      exact: true,
+    })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Rename account", exact: true })
     .click();
   await popup.getByRole("button", { name: "Back", exact: true }).click();
   await expect(
@@ -963,13 +1003,18 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
   const selector = popup.getByRole("button", { name: "Account", exact: true });
   await selector.click();
   await popup
-    .getByRole("button", { name: "Rename wallet Wallet 1", exact: true })
+    .getByRole("button", { name: "Wallet actions for Wallet 1", exact: true })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Rename wallet", exact: true })
     .click();
   await popup.getByLabel("Wallet name").fill("Trading");
   await popup.getByRole("button", { name: "Save name", exact: true }).click();
   await popup
-    .getByRole("region", { name: "Trading", exact: true })
-    .getByRole("button", { name: "+ Add account", exact: true })
+    .getByRole("button", { name: "Wallet actions for Trading", exact: true })
+    .click();
+  await popup
+    .getByRole("menuitem", { name: "Add account", exact: true })
     .click();
   await popup.getByLabel("Account name").fill("Trading two");
   await popup.getByRole("button", { name: "Add account", exact: true }).click();
@@ -1015,29 +1060,27 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
   ] as const) {
     const group = popup.getByRole("region", { name, exact: true });
     await expect(group.locator(".wallet-kind")).toHaveText(kind);
-    await expect(group.locator(".account-option")).toHaveCount(count);
+    await expect(group.locator(".account-row > .account-option")).toHaveCount(
+      count,
+    );
+    await group
+      .getByRole("button", { name: `Wallet actions for ${name}`, exact: true })
+      .click();
     await expect(
-      group.getByRole("button", { name: "+ Add account", exact: true }),
+      popup.getByRole("menuitem", { name: "Add account", exact: true }),
     ).toHaveCount(kind === "Private key" ? 0 : 1);
+    await popup.keyboard.press("Escape");
   }
   await popup.screenshot({
     path: "artifacts/wallet-screen-sources-chrome.png",
     fullPage: true,
   });
-  await popup
-    .getByRole("region", { name: "Trading", exact: true })
-    .getByRole("button", { name: "Back up wallet", exact: true })
-    .click();
-  await popup.getByLabel("Password", { exact: true }).fill(password);
-  await popup
-    .getByRole("button", { name: "Reveal backup", exact: true })
-    .click();
-  await expect(popup.locator(".secret")).toHaveText(`0x${seed}`);
-  await popup.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(popup.locator(".secret")).toHaveCount(0);
   await expect(
-    popup.getByRole("heading", { name: "Wallets", exact: true }),
-  ).toBeVisible();
+    popup.getByRole("button", { name: "Back up wallet", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    popup.getByRole("button", { name: "Rename", exact: true }),
+  ).toHaveCount(0);
   await popup
     .getByRole("button", { name: "+ Add wallet", exact: true })
     .click();
