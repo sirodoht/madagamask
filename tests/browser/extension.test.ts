@@ -177,6 +177,53 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
   }
 });
 
+test("account menu supports keyboard selection and dismissal", async () => {
+  await popup.evaluate(async () => {
+    const command = (action: string, params: Record<string, unknown>) =>
+      chrome.runtime.sendMessage({
+        version: 1,
+        type: "app:command",
+        action,
+        params,
+      });
+    await command("import", {
+      password: "disposable-account-menu-password",
+      phrase: "test test test test test test test test test test test junk",
+    });
+    await command("addAccount", { name: "Second account" });
+    await command("selectAccount", { index: 0 });
+  });
+  await popup.reload();
+  const selector = popup.getByRole("button", { name: "Account", exact: true });
+  const address = await popup.locator(".address-copy").textContent();
+  await selector.focus();
+  await popup.keyboard.press("ArrowDown");
+  await expect(
+    popup.getByRole("menuitemradio", { name: "Account 1" }),
+  ).toBeFocused();
+  await popup.keyboard.press("ArrowDown");
+  await expect(
+    popup.getByRole("menuitemradio", { name: "Second account" }),
+  ).toBeFocused();
+  await popup.keyboard.press("Enter");
+  await expect(selector).toHaveText("Second account");
+  await expect(selector).toBeFocused();
+  await expect(popup.locator(".address-copy")).not.toHaveText(address ?? "");
+  await selector.click();
+  await expect(
+    popup.getByRole("menuitemradio", { name: "Second account" }),
+  ).toHaveAttribute("aria-checked", "true");
+  await popup.keyboard.press("Escape");
+  await expect(selector).toHaveAttribute("aria-expanded", "false");
+  await expect(selector).toBeFocused();
+  await selector.click();
+  await popup.locator(".balance").click();
+  await expect(popup.getByRole("menu")).toBeHidden();
+  await selector.click();
+  await popup.getByRole("menuitemradio", { name: "Account 1" }).click();
+  await expect(popup.locator(".address-copy")).toHaveText(address ?? "");
+});
+
 test("create, back up, lock, and restore a wallet through the production UI", async () => {
   await popup
     .getByRole("button", { name: "Create wallet", exact: true })

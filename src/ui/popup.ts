@@ -12,6 +12,9 @@ const brand = document.querySelector(".brand") as HTMLElement;
 const accountControl = document.getElementById(
   "account-control",
 ) as HTMLElement;
+const accountAddress = document.getElementById(
+  "account-address",
+) as HTMLElement;
 let state: View;
 let secretTimer: ReturnType<typeof setTimeout> | undefined;
 let showingSecret = false;
@@ -67,6 +70,9 @@ function screen(title?: string) {
   app.replaceChildren(...(title ? [el("h1", title)] : []));
   brand.hidden = false;
   accountControl.hidden = true;
+  accountControl.replaceChildren();
+  accountAddress.hidden = true;
+  accountAddress.replaceChildren();
   app.setAttribute("aria-busy", "false");
 }
 function back() {
@@ -720,21 +726,83 @@ function home() {
     screen();
     brand.hidden = true;
     accountControl.hidden = false;
-    const select = el("select");
-    select.setAttribute("aria-label", "Account");
-    vault.accounts.forEach((account, index) => {
-      const option = el("option", account.name);
-      option.value = String(index);
-      option.selected = index === vault.selected;
-      select.append(option);
-    });
-    select.addEventListener("change", () => {
-      void attempt(() =>
-        command("selectAccount", { index: Number(select.value) }),
-      );
-    });
-    accountControl.replaceChildren(select);
     const account = vault.accounts[vault.selected];
+    const menu = el("div", undefined, "account-menu");
+    menu.id = "account-menu";
+    menu.popover = "auto";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", "Accounts");
+    const select = button(
+      account?.name ?? "Account",
+      () => {
+        menu.togglePopover();
+      },
+      true,
+    );
+    select.classList.add("account-toggle");
+    select.setAttribute("aria-label", "Account");
+    select.setAttribute("aria-haspopup", "menu");
+    select.setAttribute("aria-controls", menu.id);
+    select.setAttribute("aria-expanded", "false");
+    const options: HTMLButtonElement[] = [];
+    vault.accounts.forEach((account, index) => {
+      const option = button(
+        account.name,
+        () => {
+          menu.hidePopover();
+          void attempt(async () => {
+            await command("selectAccount", { index });
+            accountControl.querySelector("button")?.focus();
+          });
+        },
+        true,
+      );
+      option.className = "account-option";
+      option.setAttribute("role", "menuitemradio");
+      option.setAttribute("aria-checked", String(index === vault.selected));
+      option.tabIndex = -1;
+      options.push(option);
+      menu.append(option);
+    });
+    menu.addEventListener("beforetoggle", (event) => {
+      const open = (event as ToggleEvent).newState === "open";
+      select.setAttribute("aria-expanded", String(open));
+      if (!open) return;
+      const bounds = select.getBoundingClientRect();
+      menu.style.left = `${bounds.left}px`;
+      menu.style.top = `${bounds.bottom + 4}px`;
+      menu.style.width = `${bounds.width}px`;
+      menu.style.maxHeight = `${Math.max(44, Math.min(240, innerHeight - bounds.bottom - 20))}px`;
+    });
+    menu.addEventListener("toggle", () => {
+      if (menu.matches(":popover-open")) options[vault.selected]?.focus();
+    });
+    select.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        menu.showPopover();
+      }
+    });
+    menu.addEventListener("keydown", (event) => {
+      const current = options.indexOf(
+        document.activeElement as HTMLButtonElement,
+      );
+      let next = current;
+      if (event.key === "ArrowDown") next = (current + 1) % options.length;
+      else if (event.key === "ArrowUp")
+        next = (current - 1 + options.length) % options.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = options.length - 1;
+      else if (event.key === "Escape" || event.key === "Tab") {
+        menu.hidePopover();
+        select.focus();
+        if (event.key === "Escape") event.preventDefault();
+        return;
+      } else return;
+      event.preventDefault();
+      options[next]?.focus();
+    });
+    accountControl.replaceChildren(select, menu);
     if (account) {
       const address = button(account.address, () =>
         attempt(async () => {
@@ -745,7 +813,8 @@ function home() {
       address.className = "address address-copy";
       address.title = "Copy address";
       address.setAttribute("aria-label", `Copy address ${account.address}`);
-      app.append(address);
+      accountAddress.hidden = false;
+      accountAddress.append(address);
     }
     for (const item of state.approvals)
       app.append(button(`Review ${item.origin}`, () => approval(item)));
@@ -798,7 +867,7 @@ function home() {
       actions.append(
         button("Refresh balance", refresh, true),
         button("Receive", () => receive(), true),
-        button("Send", () => send()),
+        button("Send", () => send(), true),
         button("Activity", () => attempt(() => activity()), true),
         button("Tokens", () => attempt(() => tokens()), true),
         button("Settings", () => settings(), true),

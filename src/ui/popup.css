@@ -212,8 +212,54 @@ small {
   flex: 1;
   min-width: 0;
 }
-#account-control select {
+.account-toggle {
+  width: 100%;
+  justify-content: space-between;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.account-toggle::after {
+  content: "⌄";
+}
+.account-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 8px 24px #202b2620;
+}
+.account-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   font-size: 0.875rem;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.account-option[aria-checked="true"],
+.account-option:hover,
+.account-option:focus-visible {
+  background: var(--color-accent-soft);
+}
+.account-option[aria-checked="true"]::after {
+  content: "✓";
+}
+.account-option:focus-visible {
+  outline-offset: -3px;
 }
 .header-button {
   min-width: 44px;
@@ -222,8 +268,8 @@ small {
 }
 .address-copy {
   width: 100%;
-  min-height: 44px;
-  padding: 0;
+  min-height: 32px;
+  padding: 4px 0 0;
   border: 0;
   background: transparent;
   color: var(--color-muted);

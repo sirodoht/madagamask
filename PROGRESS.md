@@ -109,3 +109,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Moved the account dropdown to the top left and the open-tab control to the top right, alongside Lock. The full address below the account row copies on click. Removed the alpha notice, redundant home heading, bottom address/Copy button, and home backup prompt; recovery backup remains available in Settings and the existing signing requirement is unchanged.
 - Balance loads automatically on opening the wallet and changing account/network. Refresh remains available; duplicate in-flight refreshes are suppressed and results remain bound to their original screen/account/network.
 - Lint, typecheck, both package checks, and four targeted Chrome browser flows pass. Existing local-chain coverage now verifies automatic balance loading, full-address copying, and no overflow at 320×600 and 380×600. Backup/restore through Settings, transfers, and enlarged-text navigation pass. Isolated Firefox 159 renders the home in about 438 CSS pixels of height. Both distributions and archives rebuilt; no session lifecycle changes.
+
+### Account menu and tighter grouping — 2026-10-31
+
+- Grouped the full clickable address directly under the account/header row, removing the extra main-content gap. Send now uses the same neutral button style as the other home actions.
+- Replaced the native account select with an anchored, wallet-styled popover menu. Added selected-account indicators, arrow/Home/End navigation, Enter selection, Escape/Tab dismissal, outside-click dismissal, and focus restoration after selection. Screen changes remove the menu.
+- Typecheck, lint, both package checks, and four Chrome browser flows pass, including a new multi-account keyboard/dismissal check and the existing clipboard/no-overflow/transfer coverage. Inspected the open menu in isolated Firefox 159; the home occupies about 410 CSS pixels vertically. Rebuilt both browser distributions and archives.
