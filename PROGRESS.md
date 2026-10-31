@@ -221,3 +221,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Aligned wallet title text with account names and added spacing beneath the title row. Hover, keyboard focus, and selection now shade the whole account row, including its three-dot button, with one continuous rounded background.
 - Lint and both package checks pass. Inspected Firefox 159 with the pointer over an unselected account’s three-dot button and another account selected; both full-row highlights render correctly. Both distributions and archives rebuilt.
+
+### Network-switch feedback and selected-account styling — 2026-10-31
+
+- Network changes no longer show the generic Working status row, preventing its temporary popup-height expansion. Balance loading remains in place, and errors still appear normally.
+- Removed the selected account’s checkmark; its full-row highlight remains, along with accessible pressed state.
+- Lint/typecheck and both package checks pass. The Chrome local-chain browser flow passes with a mutation observer confirming no transient Working message during network selection, and the correct balance loads. Both browser distributions and archives rebuilt.

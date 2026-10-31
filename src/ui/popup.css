@@ -241,9 +241,6 @@ small {
 .account-option:focus-visible {
   background: var(--color-accent-soft);
 }
-.account-option[aria-pressed="true"]::after {
-  content: "✓";
-}
 .account-option:focus-visible {
   outline-offset: -3px;
 }

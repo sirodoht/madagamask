@@ -698,8 +698,29 @@ test("production UI imports, sends native assets, imports a token, and sends tok
     await popup
       .getByRole("button", { name: "Verify and save network" })
       .click();
+    const networkProgress = await popup
+      .getByRole("status")
+      .evaluateHandle((element) => {
+        const messages: string[] = [];
+        const observer = new MutationObserver(() =>
+          messages.push(element.textContent ?? ""),
+        );
+        observer.observe(element, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+        return { messages, observer };
+      });
     await popup.getByLabel("Network", { exact: true }).selectOption("31337");
     await expect(popup.locator(".balance")).toHaveText("10000 ETH");
+    expect(
+      await networkProgress.evaluate(({ messages, observer }) => {
+        observer.disconnect();
+        return messages;
+      }),
+    ).not.toContain("Working…");
+    await networkProgress.dispose();
     for (const width of [320, 380]) {
       await popup.setViewportSize({ width, height: 600 });
       expect(

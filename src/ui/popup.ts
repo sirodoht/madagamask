@@ -44,12 +44,12 @@ async function rpc<T = View>(
     );
   });
 }
-async function attempt(action: () => Promise<void>) {
+async function attempt(action: () => Promise<void>, showProgress = true) {
   if (busy) return;
   const generation = uiGeneration;
   busy = true;
   app.inert = true;
-  status.textContent = "Working…";
+  status.textContent = showProgress ? "Working…" : "";
   status.dataset.state = "loading";
   try {
     await action();
@@ -1034,8 +1034,9 @@ function home() {
       networkSelect.append(option);
     });
     networkSelect.addEventListener("change", () => {
-      void attempt(() =>
-        command("selectNetwork", { id: Number(networkSelect.value) }),
+      void attempt(
+        () => command("selectNetwork", { id: Number(networkSelect.value) }),
+        false,
       );
     });
     networkLabel.append(networkSelect);
