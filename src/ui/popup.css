@@ -316,9 +316,22 @@ main h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.wallet-row {
   justify-content: space-between;
+}
+.wallet-group > .wallet-row:first-child {
+  min-height: 40px;
+  padding: 0 0 4px 8px;
+}
+.account-row {
+  border-radius: 0.5rem;
+}
+.account-row:has(> .account-option[aria-pressed="true"]),
+.account-row:hover,
+.account-row:focus-within {
+  background: var(--color-accent-soft);
+}
+.account-row > .account-option {
+  background: transparent;
 }
 .row-menu {
   flex-shrink: 0;

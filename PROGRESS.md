@@ -216,3 +216,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - The account list now shares the home screen’s account name, full copyable address, Lock, and open-tab header. Removed the Wallets heading, logo substitution, and account button’s dropdown arrow. Back remains below Add wallet; the header account button also returns home from the list.
 - Associated each three-dot button with its native popover target, so clicking the same button again closes the menu instead of reopening it after light dismissal. Native autofocus preserves keyboard navigation; positioning remains bounded by the viewport.
 - Lint/typecheck, both package checks, and three targeted Chrome flows pass, including identical header/address geometry, absent heading/arrow, keyboard navigation, and repeated-click dismissal. Firefox 159 actual pointer-click validation confirms closure; inspected the consistent header. Both distributions and archives rebuilt.
+
+### Wallet title alignment and full-row highlights — 2026-10-31
+
+- Aligned wallet title text with account names and added spacing beneath the title row. Hover, keyboard focus, and selection now shade the whole account row, including its three-dot button, with one continuous rounded background.
+- Lint and both package checks pass. Inspected Firefox 159 with the pointer over an unselected account’s three-dot button and another account selected; both full-row highlights render correctly. Both distributions and archives rebuilt.
