@@ -23,6 +23,7 @@
     "package": "npm run build && npm run check:packages && node scripts/package.ts",
     "test:lifecycle": "node scripts/lifecycle.ts",
     "test:lifecycle:firefox": "node scripts/firefox-lifecycle.mjs",
+    "test:firefox": "node --test --test-concurrency=1 tests/firefox/*.test.ts",
     "test:chain": "node --test tests/chain/*.test.ts",
     "dev:dapp": "node scripts/test-dapp.ts"
   },
@@ -36,7 +37,10 @@
     "@playwright/test": "1.64.1",
     "@types/chrome": "0.3.7",
     "@types/node": "26.6.6",
+    "@types/selenium-webdriver": "4.35.7",
     "esbuild": "0.28.2",
+    "geckodriver": "8.0.0",
+    "selenium-webdriver": "4.52.0",
     "typescript": "7.0.2"
   }
 }

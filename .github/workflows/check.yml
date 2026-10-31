@@ -40,3 +40,4 @@ jobs:
           tar -xJf "$RUNNER_TEMP/firefox.tar.xz" -C "$RUNNER_TEMP"
           echo "MADAGAMASK_FIREFOX_PATH=$RUNNER_TEMP/firefox/firefox" >> "$GITHUB_ENV"
       - run: npm run test:lifecycle:firefox
+      - run: npm run test:firefox
