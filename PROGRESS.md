@@ -140,3 +140,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Removed the phishing status/timestamp paragraph and update-source explanation from Settings. The update action remains. Backup now uses the same neutral style as every other setting.
 - Arranged settings in a compact two-column grid, retaining the shared shell/header padding and Lock/open-tab placement. All settings, including the conditional imported-key export and Back, fit at 320×600 and 380×600 without hiding overflow.
 - Lint, typecheck, and both package checks pass. Three targeted Chrome flows pass: settings layout/header geometry, backup/restore, and native/token transfers using network settings. Inspected Firefox 159 Settings (about 450 CSS pixels tall) and Chrome screenshots. Both distributions and archives rebuilt.
+
+### Settings Back navigation — 2026-10-31
+
+- Back now returns to Settings from connected sites, network/account/password/auto-lock/reset forms, and both backup/export screens, including the revealed-secret view. Back on Settings still returns home.
+- Lint, typecheck, both package checks, and three targeted Chrome flows pass. Navigation coverage opens and backs out of all ten settings destinations and both revealed-secret views, verifying the secret is removed on return. Both browser distributions and archives rebuilt.

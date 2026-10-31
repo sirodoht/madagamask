@@ -223,6 +223,41 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
         path: "artifacts/settings-chrome.png",
         fullPage: true,
       });
+    if (width === 380) {
+      for (const label of [
+        "Connected sites",
+        "Add or edit network",
+        "Back up recovery phrase",
+        "Export imported key",
+        "Add account",
+        "Import private key",
+        "Rename account",
+        "Change password",
+        "Auto-lock",
+        "Reset wallet",
+      ]) {
+        await popup.getByRole("button", { name: label, exact: true }).click();
+        await popup.getByRole("button", { name: "Back", exact: true }).click();
+        await expect(
+          popup.getByRole("heading", { name: "Settings", exact: true }),
+        ).toBeVisible();
+      }
+      for (const label of ["Back up recovery phrase", "Export imported key"]) {
+        await popup.getByRole("button", { name: label, exact: true }).click();
+        await popup
+          .getByLabel("Password", { exact: true })
+          .fill("disposable-settings-password");
+        await popup
+          .getByRole("button", { name: "Reveal backup", exact: true })
+          .click();
+        await expect(popup.locator(".secret")).toBeVisible();
+        await popup.getByRole("button", { name: "Back", exact: true }).click();
+        await expect(
+          popup.getByRole("heading", { name: "Settings", exact: true }),
+        ).toBeVisible();
+        await expect(popup.locator(".secret")).toHaveCount(0);
+      }
+    }
     await popup.getByRole("button", { name: "Back", exact: true }).click();
   }
 });

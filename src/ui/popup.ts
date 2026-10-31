@@ -77,18 +77,19 @@ function screen(title?: string) {
   accountAddress.replaceChildren();
   app.setAttribute("aria-busy", "false");
 }
-function back() {
-  app.append(button("Back", () => home(), true));
+function back(destination: () => void = home) {
+  app.append(button("Back", destination, true));
 }
 function fields(
   title: string,
   inputs: Field[],
   label: string,
   action: (values: Record<string, string>) => Promise<void>,
+  returnTo: () => void = home,
 ) {
   screen(title);
   app.append(form(inputs, label, (values) => attempt(() => action(values))));
-  back();
+  back(returnTo);
 }
 async function command(action: string, params: Record<string, unknown> = {}) {
   const generation = uiGeneration;
@@ -166,9 +167,10 @@ function backup(index?: number) {
           ),
         );
       }
-      back();
+      back(settings);
       secretTimer = setTimeout(() => home(), 60_000);
     },
+    settings,
   );
 }
 async function connections() {
@@ -192,7 +194,7 @@ async function connections() {
     );
     app.append(card);
   }
-  back();
+  back(settings);
 }
 function approval(item: Approval) {
   screen(
@@ -335,6 +337,7 @@ function settings() {
           "Verify and save network",
           (values) =>
             command("addNetwork", { ...values, id: Number(values.id) }),
+          settings,
         ),
       true,
     ),
@@ -353,6 +356,7 @@ function settings() {
           [{ key: "name", label: "Account name" }],
           "Add account",
           (values) => command("addAccount", values),
+          settings,
         ),
       true,
     ),
@@ -374,6 +378,7 @@ function settings() {
           ],
           "Import key",
           (values) => command("addAccount", values),
+          settings,
         ),
       true,
     ),
@@ -387,6 +392,7 @@ function settings() {
           [{ key: "name", label: "Account name" }],
           "Save name",
           (values) => command("renameAccount", values),
+          settings,
         ),
       true,
     ),
@@ -403,6 +409,7 @@ function settings() {
           ],
           "Change password",
           (values) => command("changePassword", values),
+          settings,
         ),
       true,
     ),
@@ -423,6 +430,7 @@ function settings() {
           ],
           "Save auto-lock",
           (values) => command("autoLock", { minutes: Number(values.minutes) }),
+          settings,
         ),
       true,
     ),
@@ -443,6 +451,7 @@ function settings() {
           ],
           "Delete local wallet",
           (values) => command("reset", values),
+          settings,
         ),
       true,
     ),
