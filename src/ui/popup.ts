@@ -781,16 +781,12 @@ function home() {
       },
       true,
     );
-    const selectedLabel = el("span", undefined, "account-label");
-    selectedLabel.id = "selected-account-label";
-    selectedLabel.append(
-      el("span", account?.name ?? "Account", "account-name"),
-      el(
-        "span",
-        account?.imported ? "Imported key" : "Recovery phrase",
-        "account-source",
-      ),
+    const selectedLabel = el(
+      "span",
+      account?.name ?? "Account",
+      "account-name",
     );
+    selectedLabel.id = "selected-account-label";
     select.replaceChildren(selectedLabel);
     select.classList.add("account-toggle");
     select.setAttribute("aria-label", "Account");
@@ -805,7 +801,9 @@ function home() {
         .map((account, index) => ({ account, index }))
         .filter(({ account }) => account.imported === imported);
       if (!members.length) continue;
-      const title = imported ? "Imported accounts" : "Recovery phrase accounts";
+      const title = imported
+        ? "Private key accounts"
+        : "Recovery phrase accounts";
       const group = el("div", undefined, "account-group");
       group.setAttribute("role", "group");
       group.setAttribute("aria-label", title);

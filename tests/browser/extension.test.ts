@@ -288,9 +288,7 @@ test("account menu supports keyboard selection and dismissal", async () => {
   await popup.reload();
   const selector = popup.getByRole("button", { name: "Account", exact: true });
   const address = await popup.locator(".address-copy").textContent();
-  await expect(selector.locator(".account-source")).toHaveText(
-    "Recovery phrase",
-  );
+  await expect(selector).toHaveText("Account 1");
   await selector.focus();
   await popup.keyboard.press("ArrowDown");
   await expect(
@@ -303,7 +301,7 @@ test("account menu supports keyboard selection and dismissal", async () => {
   ).toHaveCount(2);
   await expect(
     popup
-      .getByRole("group", { name: "Imported accounts", exact: true })
+      .getByRole("group", { name: "Private key accounts", exact: true })
       .getByRole("menuitemradio"),
   ).toHaveCount(1);
   await popup.keyboard.press("ArrowDown");
@@ -333,7 +331,7 @@ test("account menu supports keyboard selection and dismissal", async () => {
     popup.getByRole("menuitemradio", { name: "Imported key", exact: true }),
   ).toBeFocused();
   await popup.keyboard.press("Enter");
-  await expect(selector.locator(".account-source")).toHaveText("Imported key");
+  await expect(selector.locator(".account-name")).toHaveText("Imported key");
   await selector.click();
   await expect(
     popup.getByRole("menuitemradio", { name: "Imported key", exact: true }),

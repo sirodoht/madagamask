@@ -155,3 +155,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Split the account dropdown into “Recovery phrase accounts” (one phrase backs up the group) and “Imported accounts” (each key needs its own backup), omitting empty groups. The closed selector also identifies the selected source. Grouping preserves the original account indices, and keyboard navigation follows visual order.
 - Settings identifies the selected account's backup type and offers “Back up selected private key” for imported accounts. Phrase/key reveal screens state which accounts the backup covers. The add-account form identifies that it creates a recovery-phrase account. Header sizing remains consistent and ordinary home/Settings layouts still fit the popup.
 - Lint, typecheck, package checks, and four targeted Chrome flows have passing coverage. Mixed-order account coverage verifies grouping, keyboard selection, selected focus, dismissal, and export of the exact selected disposable private key. Fixed a delayed-popover focus race discovered by that test. Inspected the grouped Firefox 159 menu. Both distributions and archives rebuilt.
+
+### Account source wording — 2026-10-31
+
+- Removed the source subtitle from the closed account selector and restored its compact header height. Renamed the dropdown's “Imported accounts” group to “Private key accounts,” describing the backup source instead of how accounts were added. No storage or account data changed.
+- Lint, typecheck, both package checks, and two targeted Chrome layout/account-navigation flows pass. Both browser distributions and archives rebuilt.
