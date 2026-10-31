@@ -342,6 +342,100 @@ test("a chain rollback removes a previously observed confirmation", async () => 
   );
 });
 
+test("interrupted sends survive restart and remain blocked while absent, even after twenty minutes", async () => {
+  let broadcasts = 0;
+  let signed: Hex | undefined;
+  const proxy = createHttpServer(async (request, response) => {
+    let raw = "";
+    for await (const chunk of request) raw += chunk;
+    const body = JSON.parse(raw);
+    if (body.method === "eth_sendRawTransaction") {
+      broadcasts += 1;
+      signed = body.params[0];
+      response.destroy();
+      return;
+    }
+    const upstream = await fetch(network.rpc, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: raw,
+    });
+    response.end(await upstream.text());
+  });
+  await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+  const bound = proxy.address();
+  assert.ok(bound && typeof bound !== "string");
+  try {
+    const { wallet, map } = await freshWallet(`http://127.0.0.1:${bound.port}`);
+    const params = {
+      to: "0x0000000000000000000000000000000000001234",
+      amount: "0.002",
+    };
+    const preview = (await wallet.run("prepareSend", params)) as Preview;
+    const sent = (await wallet.run("approveSend", {
+      id: preview.id,
+    })) as Activity;
+    assert.equal(sent.status, "unknown");
+    // Simulate a worker that stopped after persisting the hash, before saving the result.
+    map.set("activity", {
+      version: 1,
+      items: [
+        { ...sent, status: "submitting", createdAt: Date.now() - 1_260_000 },
+      ],
+    });
+    const restarted = new Wallet({
+      get: async (key) => structuredClone(map.get(key)),
+      set: async (key, value) => {
+        map.set(key, structuredClone(value));
+      },
+      remove: async (key) => {
+        map.delete(key);
+      },
+    });
+    await restarted.run("unlock", { password: "disposable-test-password" });
+    assert.equal(
+      (await restarted.transactions.list())[0]?.status,
+      "submitting",
+    );
+    await assert.rejects(
+      restarted.run("approveSend", { id: preview.id }),
+      /expired or was already used/,
+    );
+    const refreshed = (await restarted.run(
+      "refreshActivity",
+      {},
+    )) as Activity[];
+    assert.equal(refreshed[0]?.status, "unseen");
+    assert.equal(refreshed[0]?.hash, sent.hash);
+    await assert.rejects(
+      restarted.run("prepareSend", params),
+      /submission is uncertain/,
+    );
+    // A replacement still deliberately uses the original nonce, never a fresh send.
+    const replacement = (await restarted.run("replaceTransaction", {
+      hash: sent.hash,
+      cancel: true,
+    })) as Preview;
+    assert.equal(replacement.replacement, true);
+    await restarted.run("cancelSend", { id: replacement.id });
+    assert.equal(broadcasts, 1);
+    // The original can still arrive later. Status recovery must not rebroadcast it.
+    assert.ok(signed);
+    assert.equal(
+      await rpc(network, "eth_sendRawTransaction", [signed]),
+      sent.hash,
+    );
+    const resolved = (await restarted.run("refreshActivity", {})) as Activity[];
+    assert.equal(resolved[0]?.status, "confirmed");
+    assert.equal(broadcasts, 1);
+    const next = (await restarted.run("prepareSend", params)) as Preview;
+    await restarted.run("cancelSend", { id: next.id });
+  } finally {
+    proxy.closeAllConnections();
+    await new Promise<void>((resolve) => proxy.close(() => resolve()));
+  }
+});
+
 test("dapp dismissal during persistence prevents broadcasting a signed transaction", async () => {
   let active = true;
   const { wallet } = await freshWallet(network.rpc, () => {

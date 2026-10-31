@@ -1,5 +1,5 @@
 import { ProviderError, type Site } from "../core/dapps.ts";
-import { UserError } from "../core/validation.ts";
+import { userErrorMessage } from "../core/validation.ts";
 import { SESSION_KEY } from "../core/vault.ts";
 import { Wallet } from "../core/wallet.ts";
 import { parseRequest } from "../shared/messages.ts";
@@ -186,9 +186,12 @@ chrome.runtime.onMessage.addListener(
                 error: {
                   code: error instanceof ProviderError ? error.code : -32603,
                   message:
-                    error instanceof ProviderError || error instanceof UserError
+                    error instanceof ProviderError
                       ? error.message
-                      : "Invalid or failed wallet request.",
+                      : userErrorMessage(
+                          error,
+                          "Invalid or failed wallet request.",
+                        ),
                 },
               }),
           );
@@ -205,10 +208,10 @@ chrome.runtime.onMessage.addListener(
         (error: unknown) =>
           sendResponse({
             ok: false,
-            error:
-              error instanceof UserError
-                ? error.message
-                : "Operation failed. Please try again.",
+            error: userErrorMessage(
+              error,
+              "Operation failed. Please try again.",
+            ),
           }),
       );
       return true;
@@ -250,7 +253,7 @@ setInterval(() => {
     .then(async (items) => {
       if (
         items.some((item) =>
-          ["submitting", "pending", "unknown"].includes(item.status),
+          ["submitting", "pending", "unknown", "unseen"].includes(item.status),
         )
       )
         await wallet.run("refreshActivity", {});

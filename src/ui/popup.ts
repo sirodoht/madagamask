@@ -1110,7 +1110,7 @@ async function activity(refresh = false) {
     clearTimeout(timer);
     if (
       relevant.some((item) =>
-        ["pending", "submitting", "unknown"].includes(item.status),
+        ["pending", "submitting", "unknown", "unseen"].includes(item.status),
       )
     )
       timer = setTimeout(() => {

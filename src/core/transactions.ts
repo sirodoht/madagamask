@@ -204,7 +204,7 @@ export class Transactions {
       (item) =>
         item.chainId === network.id &&
         item.from === account.address &&
-        ["submitting", "unknown"].includes(item.status),
+        ["submitting", "unknown", "unseen"].includes(item.status),
     );
     if (unresolved && !replacement)
       throw new UserError(
@@ -361,7 +361,9 @@ export class Transactions {
             item.chainId === draft.network.id &&
             item.from === account.address &&
             item.nonce === draft.nonce &&
-            ["submitting", "pending", "unknown"].includes(item.status),
+            ["submitting", "pending", "unknown", "unseen"].includes(
+              item.status,
+            ),
         ))
     )
       throw new UserError("Nonce changed. Review the transaction again.");

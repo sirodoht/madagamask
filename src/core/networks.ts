@@ -90,6 +90,11 @@ export async function rpc(
       body += decoder.decode(next.value, { stream: true });
     }
     body += decoder.decode();
+  } catch (error) {
+    if (error instanceof UserError) throw error;
+    throw new UserError(
+      "RPC response interrupted or timed out. Check the network and try again.",
+    );
   } finally {
     reader.releaseLock();
   }

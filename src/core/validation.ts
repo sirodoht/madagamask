@@ -1,5 +1,17 @@
 export class UserError extends Error {}
 
+// RPC libraries wrap transport errors. Expose only our own user-facing text,
+// never raw provider messages, URLs, request bodies, or transaction payloads.
+export function userErrorMessage(error: unknown, fallback: string): string {
+  const seen = new Set<unknown>();
+  while (error instanceof Error && !seen.has(error)) {
+    if (error instanceof UserError) return error.message;
+    seen.add(error);
+    error = error.cause;
+  }
+  return fallback;
+}
+
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new UserError("Invalid request.");
