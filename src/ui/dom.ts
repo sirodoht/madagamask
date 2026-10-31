@@ -24,9 +24,20 @@ export function button(
   );
   result.type = "button";
   result.addEventListener("click", () => {
-    void action();
+    if (result.getAttribute("aria-busy") === "true") return;
+    const work = action();
+    if (work instanceof Promise && result.getAttribute("aria-busy") !== "true")
+      void pending(result, work);
   });
   return result;
+}
+function pending(element: HTMLButtonElement, work: Promise<void>) {
+  element.classList.add("is-busy");
+  element.setAttribute("aria-busy", "true");
+  return work.finally(() => {
+    element.classList.remove("is-busy");
+    element.removeAttribute("aria-busy");
+  });
 }
 export type Field = {
   key: string;
@@ -69,7 +80,7 @@ export function form(
     const values = Object.fromEntries(
       [...inputs].map(([name, input]) => [name, input.value]),
     );
-    void action(values).finally(() => {
+    void pending(submit, action(values)).finally(() => {
       submit.disabled = false;
       for (const input of inputs.values())
         if (input instanceof HTMLInputElement && input.type === "password")

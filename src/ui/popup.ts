@@ -44,19 +44,26 @@ async function rpc<T = View>(
     );
   });
 }
-async function attempt(action: () => Promise<void>, showProgress = true) {
+async function attempt(
+  action: () => Promise<void>,
+  showProgress = false,
+  feedback = status,
+) {
   if (busy) return;
   const generation = uiGeneration;
+  const currentScreen = screenId;
   busy = true;
   app.inert = true;
   status.textContent = showProgress ? "Working…" : "";
+  if (feedback !== status) feedback.textContent = "";
   status.dataset.state = "loading";
   try {
     await action();
     if (status.textContent === "Working…") status.textContent = "";
     status.dataset.state = "ready";
   } catch (error) {
-    status.textContent =
+    if (feedback === status && currentScreen !== screenId) return;
+    feedback.textContent =
       error instanceof Error ? error.message : "Something went wrong.";
     status.dataset.state = "error";
   } finally {
@@ -70,6 +77,7 @@ function screen(title?: string) {
   clearTimeout(secretTimer);
   clearTimeout(copyTimer);
   showingSecret = false;
+  status.textContent = "";
   app.replaceChildren(...(title ? [el("h1", title)] : []));
   brand.hidden = false;
   accountControl.hidden = true;
@@ -78,9 +86,25 @@ function screen(title?: string) {
   accountAddress.replaceChildren();
   app.setAttribute("aria-busy", "false");
   app.removeAttribute("aria-label");
+  if (state?.vault.state === "unlocked") accountHeader();
 }
 function back(destination: () => void = home) {
   app.append(button("Back", destination, true));
+}
+function walletForm(
+  inputs: Field[],
+  label: string,
+  action: (values: Record<string, string>) => Promise<void>,
+) {
+  const error = transferError();
+  const body = form(inputs, label, (values) =>
+    attempt(() => action(values), false, error),
+  );
+  body.insertBefore(error, body.lastElementChild);
+  body.addEventListener("input", () => {
+    error.textContent = "";
+  });
+  return body;
 }
 function fields(
   title: string,
@@ -90,8 +114,14 @@ function fields(
   returnTo: () => void = home,
 ) {
   screen(title);
-  app.append(form(inputs, label, (values) => attempt(() => action(values))));
-  back(returnTo);
+  const body = walletForm(inputs, label, action);
+  const submit = body.querySelector(
+    'button[type="submit"]',
+  ) as HTMLButtonElement;
+  const actions = el("div", undefined, "action-grid");
+  actions.append(button("Back", returnTo, true), submit);
+  body.append(actions);
+  app.append(body);
 }
 async function command(
   action: string,
@@ -99,10 +129,11 @@ async function command(
   destination: () => void = home,
 ) {
   const generation = uiGeneration;
+  const currentScreen = screenId;
   const next = await rpc<View>(action, params);
   if (generation !== uiGeneration) return;
   state = next;
-  destination();
+  if (currentScreen === screenId) destination();
 }
 const passwordField: Field = {
   key: "password",
@@ -132,7 +163,7 @@ function onboarding(importing: boolean, kind: WalletKind = "mnemonic") {
       passwordField,
       { key: "confirm", label: "Confirm password", type: "password" },
     ],
-    importing ? "Import test wallet" : "Create test wallet",
+    importing ? "Import wallet" : "Create wallet",
     async (values) => {
       if (values.password !== values.confirm)
         throw new Error("Passwords do not match.");
@@ -141,6 +172,7 @@ function onboarding(importing: boolean, kind: WalletKind = "mnemonic") {
         ...(importing ? { secret: values.phrase, kind } : {}),
       });
     },
+    importing ? importWallet : home,
   );
 }
 const walletLabels: Record<WalletKind, string> = {
@@ -197,7 +229,8 @@ function addAccount(wallet: PublicWallet, returnTo: () => void = home) {
     `Add account · ${wallet.name}`,
     [{ key: "name", label: "Account name" }],
     "Add account",
-    (values) => command("addAccount", { ...values, walletId: wallet.id }),
+    (values) =>
+      command("addAccount", { ...values, walletId: wallet.id }, returnTo),
     returnTo,
   );
 }
@@ -345,7 +378,7 @@ function accountHeader(onSelect: () => void = wallets) {
     address.title = "Copy address";
     address.setAttribute("aria-label", `Copy address ${account.address}`);
     accountAddress.hidden = false;
-    accountAddress.append(address);
+    accountAddress.replaceChildren(address);
   }
   return account;
 }
@@ -440,7 +473,7 @@ function addWallet(returnTo: () => void = home) {
             ]),
       ],
       generate ? "Create wallet" : "Import wallet",
-      (values) => command("addWallet", { ...values, kind }),
+      (values) => command("addWallet", { ...values, kind }, returnTo),
       () => addWallet(returnTo),
     );
   };
@@ -458,16 +491,18 @@ function backup(wallet: PublicWallet, returnTo: () => void = wallets) {
     [{ key: "password", label: "Password", type: "password" }],
     "Reveal backup",
     async (values) => {
+      const currentScreen = screenId;
       const { secret } = await rpc<{ secret: string }>("reveal", {
         password: values.password,
         walletId: wallet.id,
       });
+      if (screenId !== currentScreen) return;
       screen(`${wallet.name} · ${walletLabels[wallet.kind]}`);
       showingSecret = true;
       app.append(el("pre", secret, "secret"));
       if (!wallet.backedUp) {
         app.append(
-          form(
+          walletForm(
             [
               {
                 key: "phrase",
@@ -477,27 +512,31 @@ function backup(wallet: PublicWallet, returnTo: () => void = wallets) {
             ],
             "Confirm backup",
             (values) =>
-              attempt(() =>
-                command("confirmBackup", { ...values, walletId: wallet.id }),
+              command(
+                "confirmBackup",
+                { ...values, walletId: wallet.id },
+                returnTo,
               ),
           ),
         );
       }
       back(returnTo);
-      secretTimer = setTimeout(() => home(), 60_000);
+      secretTimer = setTimeout(returnTo, 60_000);
     },
     returnTo,
   );
 }
 async function connections() {
+  const currentScreen = screenId;
   const grants = await rpc<Record<string, string[]>>("connections");
+  if (screenId !== currentScreen) return;
   screen("Connected sites");
   if (!Object.keys(grants).length) app.append(el("p", "No connected sites."));
   for (const [origin, accounts] of Object.entries(grants)) {
-    const card = el("section", undefined, "card stack");
+    const card = el("section", undefined, "connection-card stack");
     card.append(
       el("h2", origin),
-      el("p", accounts.join(", ")),
+      ...accounts.map((account) => el("p", account, "address")),
       button(
         "Disconnect",
         () =>
@@ -551,12 +590,7 @@ function approval(item: Approval) {
     ),
   );
   if (item.preview) {
-    app.append(
-      el("p", `To: ${item.preview.to}`),
-      el("p", `Amount: ${item.preview.amount} ${item.preview.symbol}`),
-      el("p", `Maximum fee: ${item.preview.fee} ${item.preview.symbol}`),
-      el("p", `Maximum total: ${item.preview.total} ${item.preview.symbol}`),
-    );
+    app.append(transactionSummary(item.preview, true));
     app.append(
       el("p", item.preview.interpretation.summary),
       el("p", item.preview.interpretation.warning),
@@ -564,7 +598,7 @@ function approval(item: Approval) {
     );
     if (item.preview.interpretation.kind === "approval")
       app.append(
-        form(
+        walletForm(
           [
             {
               key: "amount",
@@ -573,18 +607,17 @@ function approval(item: Approval) {
             },
           ],
           "Update allowance",
-          (values) =>
-            attempt(async () => {
-              state = await rpc("editDappAllowance", {
-                id: item.id,
-                amount: values.amount,
-              });
-              const updated = state.approvals.find(
-                (value) => value.id === item.id,
-              );
-              if (updated) approval(updated);
-              else home();
-            }),
+          async (values) => {
+            state = await rpc("editDappAllowance", {
+              id: item.id,
+              amount: values.amount,
+            });
+            const updated = state.approvals.find(
+              (value) => value.id === item.id,
+            );
+            if (updated) approval(updated);
+            else home();
+          },
         ),
       );
   }
@@ -597,23 +630,27 @@ function approval(item: Approval) {
       app.append(el("pre", new TextDecoder().decode(bytes), "secret"));
     } catch {}
   }
-  const details = el("details");
+  const details = el("details", undefined, "transfer-details");
   details.append(
     el("summary", "Exact request details"),
     el("pre", JSON.stringify(item.params, null, 2), "secret"),
   );
   app.append(details);
-  app.append(
-    button(
-      item.method === "eth_requestAccounts" ? "Connect" : "Approve request",
-      () => attempt(() => command("approveDapp", { id: item.id })),
-    ),
+  for (const note of app.querySelectorAll(":scope > p"))
+    note.classList.add("request-note");
+  const actions = el("div", undefined, "action-grid");
+  actions.append(
     button(
       "Reject request",
       () => attempt(() => command("rejectDapp", { id: item.id })),
       true,
     ),
+    button(
+      item.method === "eth_requestAccounts" ? "Connect" : "Approve request",
+      () => attempt(() => command("approveDapp", { id: item.id })),
+    ),
   );
+  app.append(actions);
 }
 function settings() {
   screen("Settings");
@@ -652,7 +689,11 @@ function settings() {
           ],
           "Verify and save network",
           (values) =>
-            command("addNetwork", { ...values, id: Number(values.id) }),
+            command(
+              "addNetwork",
+              { ...values, id: Number(values.id) },
+              settings,
+            ),
           settings,
         ),
       true,
@@ -665,11 +706,16 @@ function settings() {
         fields(
           "Change password",
           [
-            passwordField,
-            { key: "newPassword", label: "New password", type: "password" },
+            { key: "password", label: "Current password", type: "password" },
+            {
+              key: "newPassword",
+              label: "New password",
+              type: "password",
+              help: "At least 12 characters.",
+            },
           ],
           "Change password",
-          (values) => command("changePassword", values),
+          (values) => command("changePassword", values, settings),
           settings,
         ),
       true,
@@ -690,7 +736,8 @@ function settings() {
             },
           ],
           "Save auto-lock",
-          (values) => command("autoLock", { minutes: Number(values.minutes) }),
+          (values) =>
+            command("autoLock", { minutes: Number(values.minutes) }, settings),
           settings,
         ),
       true,
@@ -703,7 +750,7 @@ function settings() {
         fields(
           "Reset all wallets",
           [
-            passwordField,
+            { key: "password", label: "Password", type: "password" },
             {
               key: "confirmation",
               label: "Type DELETE",
@@ -732,12 +779,9 @@ function transferError() {
   error.setAttribute("role", "alert");
   return error;
 }
-function review(preview: Preview, edit?: () => void) {
-  transferHeading("Review transaction", preview.network);
-  const reviewScreen = screenId;
+function transactionSummary(preview: Preview, showAmount = false) {
   const asset = preview.asset;
   const quantity = `${asset?.amount ?? preview.amount} ${asset?.symbol ?? preview.symbol}`;
-  app.append(el("p", quantity, "transfer-amount"));
   const summary = el("dl", undefined, "transfer-summary");
   const row = (label: string, value: string, className = "") => {
     const item = el("div", undefined, className);
@@ -745,6 +789,7 @@ function review(preview: Preview, edit?: () => void) {
     summary.append(item);
   };
   row("Recipient", asset?.recipient ?? preview.to, "transfer-recipient");
+  if (showAmount) row("Amount", quantity);
   row("Maximum network fee", `${preview.fee} ${preview.symbol}`);
   row(
     "Maximum total",
@@ -760,7 +805,15 @@ function review(preview: Preview, edit?: () => void) {
       el("span", ` + ${preview.fee} ${preview.symbol}`),
     );
   }
-  app.append(summary);
+  return summary;
+}
+function review(preview: Preview, edit?: () => void) {
+  transferHeading("Review transaction", preview.network);
+  const reviewScreen = screenId;
+  const asset = preview.asset;
+  const quantity = `${asset?.amount ?? preview.amount} ${asset?.symbol ?? preview.symbol}`;
+  app.append(el("p", quantity, "transfer-amount"));
+  app.append(transactionSummary(preview));
   if (preview.replacement)
     app.append(
       el(
@@ -1068,6 +1121,7 @@ async function activity(refresh = false) {
     if (loading || screenId !== currentScreen) return;
     loading = true;
     refreshButton.disabled = true;
+    refreshButton.setAttribute("aria-busy", "true");
     refreshButton.textContent = "";
     const spinner = el("span", undefined, "balance-spinner");
     refreshButton.append(spinner);
@@ -1082,6 +1136,7 @@ async function activity(refresh = false) {
     } finally {
       loading = false;
       refreshButton.disabled = false;
+      refreshButton.removeAttribute("aria-busy");
       refreshButton.textContent = "↻";
       refreshButton.setAttribute("aria-label", "Refresh activity");
     }
@@ -1232,27 +1287,30 @@ async function tokens() {
     button(
       "Import token",
       () => {
-        transferHeading("Import token", network.name);
-        app.append(
-          form(
-            [
-              {
-                key: "address",
-                label: "Token contract address",
-                help: `Use the contract address on ${network.name}.`,
-              },
-            ],
-            "Verify and import",
-            (values) =>
-              attempt(async () => {
-                await rpc("importToken", {
-                  address: (values.address ?? "").trim(),
-                });
-                await tokens();
-              }),
-          ),
+        fields(
+          "Import token",
+          [
+            {
+              key: "address",
+              label: "Token contract address",
+              help: `Use the contract address on ${network.name}.`,
+            },
+          ],
+          "Verify and import",
+          async (values) => {
+            await rpc("importToken", {
+              address: (values.address ?? "").trim(),
+            });
+            await tokens();
+          },
+          () => void attempt(() => tokens(), false),
         );
-        back(() => void attempt(() => tokens(), false));
+        const heading = app.querySelector("h1");
+        if (heading) {
+          const row = el("div", undefined, "transfer-heading");
+          heading.replaceWith(row);
+          row.append(heading, el("span", network.name, "network-badge"));
+        }
       },
       true,
     ),
@@ -1316,6 +1374,18 @@ async function receive() {
   }
   code.replaceChildren(canvas, el("p", "Scan to receive", "receive-caption"));
 }
+function importWallet() {
+  screen("Import wallet");
+  for (const kind of ["mnemonic", "seed", "privateKey"] as const)
+    app.append(
+      button(
+        `Import ${walletLabels[kind].toLowerCase()}`,
+        () => onboarding(true, kind),
+        true,
+      ),
+    );
+  back();
+}
 function home() {
   const vault = state.vault;
   const quickLock = document.getElementById("quick-lock");
@@ -1323,35 +1393,17 @@ function home() {
   if (vault.state === "not-created") {
     screen("Ethereum wallet");
     app.append(
-      el(
-        "p",
-        "Create a fresh test wallet, or restore one from its recovery phrase.",
-      ),
+      el("p", "Create a wallet or restore an existing one."),
       button("Create wallet", () => onboarding(false)),
-      button(
-        "Import wallet",
-        () => {
-          screen("Import wallet");
-          for (const kind of ["mnemonic", "seed", "privateKey"] as const)
-            app.append(
-              button(
-                `Import ${walletLabels[kind].toLowerCase()}`,
-                () => onboarding(true, kind),
-                true,
-              ),
-            );
-          back();
-        },
-        true,
-      ),
+      button("Import wallet", importWallet, true),
     );
   } else if (vault.state === "locked") {
     screen("Welcome back");
     app.append(
-      form(
+      walletForm(
         [{ key: "password", label: "Password", type: "password" }],
         "Unlock",
-        (values) => attempt(() => command("unlock", values)),
+        (values) => command("unlock", values),
       ),
     );
     // Initial rendering can happen while the app is inert during state loading.

@@ -256,6 +256,99 @@ test("popup preserves layout and keyboard access at narrow widths and enlarged t
   }
 });
 
+test("settings forms share headers, keep feedback local, and return to their parent after saving", async () => {
+  await popup
+    .getByRole("button", { name: "Import wallet", exact: true })
+    .click();
+  await popup.getByRole("button", { name: "Import seed", exact: true }).click();
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(
+    popup.getByRole("button", { name: "Import mnemonic", exact: true }),
+  ).toBeVisible();
+  await popup.evaluate(() =>
+    chrome.runtime.sendMessage({
+      version: 1,
+      type: "app:command",
+      action: "import",
+      params: {
+        password: "disposable-consistency-password",
+        phrase: "test test test test test test test test test test test junk",
+      },
+    }),
+  );
+  await popup.reload();
+  await expect(popup.locator(".address-value")).toBeVisible();
+  const header = await popup.locator(".brand-row").boundingBox();
+  const address = await popup.locator("#account-address").boundingBox();
+  await popup.getByRole("button", { name: "Settings", exact: true }).click();
+  for (const name of [
+    "Auto-lock",
+    "Change password",
+    "Connected sites",
+    "Reset all wallets",
+  ]) {
+    await popup.getByRole("button", { name, exact: true }).click();
+    await expect(
+      popup.getByRole("heading", { name, exact: true }),
+    ).toBeVisible();
+    expect(await popup.locator(".brand-row").boundingBox()).toEqual(header);
+    expect(await popup.locator("#account-address").boundingBox()).toEqual(
+      address,
+    );
+    await expect(popup.locator(".brand")).toBeHidden();
+    await popup.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(
+      popup.getByRole("heading", { name: "Settings", exact: true }),
+    ).toBeVisible();
+  }
+  await popup.getByRole("button", { name: "Auto-lock", exact: true }).click();
+  await popup.getByLabel("Minutes of inactivity (1–30)").fill("0");
+  await popup
+    .getByRole("button", { name: "Save auto-lock", exact: true })
+    .click();
+  await expect(popup.getByRole("alert")).toHaveText("Invalid number.");
+  await expect(popup.getByRole("status")).toHaveText("");
+  await popup.getByLabel("Minutes of inactivity (1–30)").fill("17");
+  await expect(popup.locator(".transfer-error")).toHaveText("");
+  await popup.evaluate(() => {
+    const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+    Object.defineProperty(chrome.runtime, "sendMessage", {
+      value: (
+        request: { action?: string },
+        callback: (value: unknown) => void,
+      ) => {
+        if (request.action === "autoLock") {
+          setTimeout(() => original(request, callback), 600);
+          return;
+        }
+        return original(request, callback);
+      },
+    });
+  });
+  const submit = popup.getByRole("button", {
+    name: "Save auto-lock",
+    exact: true,
+  });
+  const bounds = await submit.boundingBox();
+  const shell = await popup.locator(".shell").boundingBox();
+  await submit.click();
+  await expect(submit).toHaveAttribute("aria-busy", "true");
+  expect(await submit.boundingBox()).toEqual(bounds);
+  expect(await popup.locator(".shell").boundingBox()).toEqual(shell);
+  await expect(popup.getByRole("status")).toHaveText("");
+  await expect(
+    popup.getByRole("heading", { name: "Settings", exact: true }),
+  ).toBeVisible();
+  await popup.getByRole("button", { name: "Auto-lock", exact: true }).click();
+  await expect(popup.getByLabel("Minutes of inactivity (1–30)")).toHaveValue(
+    "17",
+  );
+  await popup.screenshot({
+    path: "artifacts/consistent-form.png",
+    fullPage: true,
+  });
+});
+
 test("wallet screen selects accounts and renames without changing selection", async () => {
   await popup.evaluate(async () => {
     const command = (action: string, params: Record<string, unknown>) =>
@@ -442,7 +535,7 @@ test("create, back up, lock, and restore a wallet through the production UI", as
   await popup
     .getByLabel("Confirm password", { exact: true })
     .fill("a-disposable-test-password");
-  await popup.getByRole("button", { name: "Create test wallet" }).click();
+  await popup.getByRole("button", { name: "Create wallet" }).click();
   await expect(popup.getByLabel("Account", { exact: true })).toBeVisible();
   const address = await popup.locator(".address").textContent();
   await popup.getByRole("button", { name: "Account", exact: true }).click();
@@ -1029,7 +1122,7 @@ test("production UI imports, sends native assets, imports a token, and sends tok
     await popup
       .getByLabel("Confirm password", { exact: true })
       .fill("disposable-test-password");
-    await popup.getByRole("button", { name: "Import test wallet" }).click();
+    await popup.getByRole("button", { name: "Import wallet" }).click();
     await popup.getByRole("button", { name: "Settings", exact: true }).click();
     await popup.getByRole("button", { name: "Add or edit network" }).click();
     for (const [label, value] of [
@@ -1042,6 +1135,10 @@ test("production UI imports, sends native assets, imports a token, and sends tok
     await popup
       .getByRole("button", { name: "Verify and save network" })
       .click();
+    await expect(
+      popup.getByRole("heading", { name: "Settings", exact: true }),
+    ).toBeVisible();
+    await popup.getByRole("button", { name: "Back", exact: true }).click();
     const networkProgress = await popup
       .getByRole("status")
       .evaluateHandle((element) => {
@@ -1572,7 +1669,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
   await popup.getByLabel("Seed (hexadecimal)").fill(seed);
   await popup.getByLabel("Password", { exact: true }).fill(password);
   await popup.getByLabel("Confirm password", { exact: true }).fill(password);
-  await popup.getByRole("button", { name: "Import test wallet" }).click();
+  await popup.getByRole("button", { name: "Import wallet" }).click();
   const selector = popup.getByRole("button", { name: "Account", exact: true });
   await selector.click();
   await popup
@@ -1598,7 +1695,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     label: string,
     secret: string,
   ) => {
-    await selector.click();
+    await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
     await popup
       .getByRole("button", { name: "+ Add wallet", exact: true })
       .click();
@@ -1625,7 +1722,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     `0x${"33".repeat(32)}`,
   );
   await popup.setViewportSize({ width: 380, height: 600 });
-  await selector.click();
+  await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
   for (const [name, kind, count] of [
     ["Trading", "Seed", 2],
     ["Personal", "Mnemonic", 1],
@@ -1705,7 +1802,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     .getByRole("button", { name: "Create wallet", exact: true })
     .click();
   await expect(selector.locator(".account-name")).toHaveText("Account 1");
-  await selector.click();
+  await expect(popup.locator('#app[aria-label="Accounts"]')).toBeVisible();
   await popup
     .getByRole("button", { name: "Wallet actions for Fresh", exact: true })
     .click();
