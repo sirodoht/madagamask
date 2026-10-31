@@ -1186,7 +1186,7 @@ test("website provider discovers, connects, signs, and hides accounts after lock
     await popup
       .getByRole("button", { name: `Review http://127.0.0.1:${bound.port}` })
       .click();
-    await popup.getByRole("button", { name: "Approve request" }).click();
+    await popup.getByRole("button", { name: "Sign message" }).click();
     expect(await signing).toMatch(/^0x[0-9a-f]{130}$/i);
     await popup.getByRole("button", { name: "Lock wallet" }).click();
     expect(
@@ -2003,16 +2003,21 @@ test("production UI imports, sends native assets, imports a token, and sends tok
       });
       approving.catch(() => {});
       await show();
-      await expect(popup.getByText(/UNLIMITED tokens/)).toBeVisible();
+      await expect(
+        popup.getByText("Unlimited spending", { exact: true }),
+      ).toBeVisible();
+      await popup.getByText("Reduce allowance", { exact: true }).click();
       await popup
         .getByLabel("Allowance in token base units", { exact: true })
         .fill("7");
       await popup
         .getByRole("button", { name: "Update allowance", exact: true })
         .click();
-      await expect(popup.getByText(/spend 7 base units/)).toBeVisible();
+      await expect(
+        popup.getByText("7 token base units", { exact: true }),
+      ).toBeVisible();
       await popup
-        .getByRole("button", { name: "Approve request", exact: true })
+        .getByRole("button", { name: "Approve spending", exact: true })
         .click();
       const approvedHash = (await approving) as Hex;
       const approvedReceipt = await client(network).waitForTransactionReceipt({
@@ -2300,4 +2305,227 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     .getByRole("button", { name: "Confirm backup", exact: true })
     .click();
   await expect(selector).toBeVisible();
+});
+
+test("signing reviews expose exact permissions, unreadable messages, and unknown structured data", async () => {
+  test.setTimeout(60_000);
+  const { permit, permit2, owner, spender, token } = await import(
+    "../fixtures/permits.ts"
+  );
+  const { recoverTypedDataAddress } = await import("viem");
+  const closeRpc = await localReliabilityWallet();
+  const server = createServer((_request, response) => {
+    response.setHeader("Content-Type", "text/html");
+    response.end("<!doctype html><title>Signing review fixture</title>");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const bound = server.address();
+  if (!bound || typeof bound === "string") throw new Error("No site port");
+  const origin = `http://127.0.0.1:${bound.port}`;
+  try {
+    const site = await context.newPage();
+    await site.goto(origin);
+    type Provider = {
+      request: (args: {
+        method: string;
+        params?: unknown[];
+      }) => Promise<unknown>;
+    };
+    await site.waitForFunction(
+      () => !!(window as unknown as { ethereum?: Provider }).ethereum,
+    );
+    const request = (args: { method: string; params?: unknown[] }) =>
+      site.evaluate(
+        (args) =>
+          (window as unknown as { ethereum: Provider }).ethereum.request(args),
+        args,
+      );
+    const show = async () => {
+      await expect
+        .poll(() =>
+          popup.evaluate(
+            async () =>
+              (
+                await chrome.runtime.sendMessage({
+                  version: 1,
+                  type: "app:command",
+                  action: "state",
+                  params: {},
+                })
+              ).value.approvals.length,
+          ),
+        )
+        .toBe(1);
+      await popup.reload();
+      await popup
+        .getByRole("button", { name: `Review ${origin}`, exact: true })
+        .click();
+    };
+    const connect = request({ method: "eth_requestAccounts" });
+    connect.catch(() => {});
+    await show();
+    await popup.getByRole("button", { name: "Connect", exact: true }).click();
+    await connect;
+    const data = { ...permit, domain: { ...permit.domain, chainId: 31337 } };
+    const signing = request({
+      method: "eth_signTypedData_v4",
+      params: [owner, JSON.stringify(data)],
+    });
+    signing.catch(() => {});
+    await show();
+    await expect(
+      popup.getByRole("region", { name: "Requesting site" }),
+    ).toContainText(origin);
+    const permission = popup.getByRole("region", {
+      name: "Declared spending permission",
+    });
+    await expect(permission).toContainText(spender);
+    await expect(permission).toContainText(token);
+    await expect(permission).toContainText("No automatic expiry");
+    await expect(
+      popup.getByText("Unlimited spending", { exact: true }),
+    ).toBeVisible();
+    for (const width of [396, 320]) {
+      await popup.setViewportSize({ width, height: 600 });
+      await expect
+        .poll(() => popup.evaluate(() => document.documentElement.scrollWidth))
+        .toBeLessThanOrEqual(width);
+      await popup.screenshot({
+        path: `artifacts/signing-permit-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await popup.getByText("Reduce allowance", { exact: true }).focus();
+    await popup.getByText("Reduce allowance", { exact: true }).press("Enter");
+    await popup
+      .getByLabel("Allowance in token base units", { exact: true })
+      .fill("7");
+    await popup
+      .getByRole("button", { name: "Update allowance", exact: true })
+      .click();
+    await expect(permission).toContainText("7 token base units");
+    await expect(
+      popup.getByText("Unlimited spending", { exact: true }),
+    ).toHaveCount(0);
+    await popup.getByText("Exact request details", { exact: true }).click();
+    await expect(popup.locator("pre.secret")).toContainText(
+      '\\"value\\":\\"7\\"',
+    );
+    await popup
+      .getByRole("button", { name: "Sign spending permission", exact: true })
+      .click();
+    const signature = (await signing) as Hex;
+    expect(
+      await recoverTypedDataAddress({
+        ...data,
+        message: {
+          ...data.message,
+          value: 7n,
+          nonce: 3n,
+          deadline: 2000000000n,
+        },
+        signature,
+      }),
+    ).toBe(owner);
+
+    const second = {
+      ...permit2,
+      domain: { ...permit2.domain, chainId: 31337 },
+    };
+    const secondRequest = request({
+      method: "eth_signTypedData_v4",
+      params: [owner, second],
+    }).catch(() => "rejected");
+    await show();
+    await expect(permission).toContainText("Permit2 PermitSingle");
+    await expect(permission).toContainText("1800000000");
+    await expect(permission).toContainText("1900000000");
+    await popup
+      .getByRole("button", { name: "Reject request", exact: true })
+      .click();
+    expect(await secondRequest).toBe("rejected");
+
+    const binary = request({
+      method: "personal_sign",
+      params: ["0xff00", owner],
+    }).catch(() => "rejected");
+    await show();
+    await expect(
+      popup.getByRole("region", { name: "Exact message bytes" }),
+    ).toContainText("0xff00");
+    await expect(
+      popup.getByRole("button", {
+        name: "Sign unreadable message",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await popup.screenshot({
+      path: "artifacts/signing-unreadable.png",
+      fullPage: true,
+    });
+    await popup
+      .getByRole("button", { name: "Reject request", exact: true })
+      .click();
+    expect(await binary).toBe("rejected");
+
+    const unknown = request({
+      method: "eth_signTypedData_v4",
+      params: [
+        owner,
+        {
+          domain: { name: "<script>not trusted</script>" },
+          types: {
+            Order: [{ name: "details", type: "Details" }],
+            Details: [
+              { name: "receiver", type: "address" },
+              { name: "value", type: "uint256" },
+            ],
+          },
+          primaryType: "Order",
+          message: {
+            details: { receiver: spender, value: "999999999999999999999999" },
+          },
+        },
+      ],
+    }).catch(() => "rejected");
+    await show();
+    await expect(
+      popup.getByText(/We couldn’t interpret this request\. These fields/),
+    ).toBeVisible();
+    await expect(
+      popup.getByText(/No chain ID in the signature domain/),
+    ).toBeVisible();
+    await expect(
+      popup.getByRole("region", { name: "Message fields" }),
+    ).toContainText("999999999999999999999999");
+    await expect(
+      popup.getByRole("region", { name: "Message fields" }),
+    ).toContainText(spender);
+    await expect(
+      popup.getByRole("region", { name: "Application and contract" }),
+    ).toContainText("<script>not trusted</script>");
+    await expect(
+      popup
+        .getByRole("region", { name: "Application and contract" })
+        .locator("script"),
+    ).toHaveCount(0);
+    await popup.evaluate(() => {
+      document.documentElement.style.fontSize = "20px";
+    });
+    await expect
+      .poll(() => popup.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(320);
+    await popup.screenshot({
+      path: "artifacts/signing-unknown.png",
+      fullPage: true,
+    });
+    await popup
+      .getByRole("button", { name: "Reject request", exact: true })
+      .click();
+    expect(await unknown).toBe("rejected");
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeRpc();
+  }
 });

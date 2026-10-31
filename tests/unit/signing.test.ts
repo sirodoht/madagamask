@@ -143,6 +143,8 @@ test("message review preserves complete UTF-8 and exposes binary or hidden forma
     encode("hello\u202Eworld"),
     encode("\uFEFFhello"),
     encode("yes\u0000no"),
+    encode("pay\u061C100"),
+    encode("pay\u00AD100"),
   ]) {
     assert.equal(messageContent(hex).readable, false);
     assert.equal(messageContent(hex).text, hex);

@@ -777,6 +777,52 @@ main h1 {
   font-size: 0.8125rem;
   line-height: 1.5;
 }
+.approval-card {
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  min-width: 0;
+}
+.approval-card h2 {
+  margin: 0 0 12px;
+  font-size: 0.875rem;
+}
+.approval-card dl {
+  margin: 0;
+}
+.approval-card dl > div + div {
+  margin-top: 12px;
+}
+.approval-card dt {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+.approval-card dd {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.approval-card .approval-address {
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+.approval-notice {
+  margin: 0;
+  padding: 12px;
+  border-left: 3px solid #9a6700;
+  border-radius: 6px;
+  background: #fff4d6;
+  color: #654400;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.approval-actions button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 .wallet-group {
   padding: 8px;

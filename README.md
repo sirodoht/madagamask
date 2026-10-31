@@ -51,7 +51,7 @@ The wallet exposes EIP-1193 `request`, `on`, and `removeListener`, EIP-6963 disc
 
 Unsupported methods fail explicitly. This is not MetaMask API parity: contract creation, caller-supplied nonce/gas/fee fields, `eth_sign`, legacy typed signing, batch calls, wallet asset watching, WalletConnect, and proprietary APIs are unsupported. Many production dapps will need broader compatibility before they work. Connections can be removed in Settings; connection alone never authorizes signing.
 
-Approvals show the browser-verified origin, account, network, exact message or typed data, and transaction details. ERC20 transfer/approval/transferFrom calls are decoded; unlimited allowances are flagged and standard approval amounts can be edited before a fresh review. Other calls show raw data and explicit uncertainty.
+Approvals show the browser-verified origin, account, network, complete readable message (or exact bytes for unreadable messages), and transaction details. Exact ERC-2612 Permit and Permit2 PermitSingle schemas show token, spender, base-unit allowance, and separate signature deadlines and allowance expiry. Other typed data shows all message/domain fields with explicit uncertainty. ERC20 transfer/approval/transferFrom calls are decoded. Unlimited allowances are flagged; supported permission and approval amounts can only be reduced, creating a new review and invalidating the old one. Raw payloads remain inspectable. Signature domain/message fields must match the signed schema; unsigned extra fields, unsafe numeric integers, and nonstandard domain schemas are rejected.
 
 ## Simulation, privacy, and permissions
 

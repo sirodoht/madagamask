@@ -1,5 +1,11 @@
 import type { ActivityView } from "../core/activity.ts";
 import type { Approval } from "../core/dapps.ts";
+import {
+  messageContent,
+  readTypedData,
+  signatureDeadline,
+  spendingPermission,
+} from "../core/signing.ts";
 import type { Token } from "../core/tokens.ts";
 import type { Activity, Preview } from "../core/transactions.ts";
 import type { PublicWallet, WalletKind } from "../core/vault.ts";
@@ -571,107 +577,353 @@ async function connections() {
   }
   back(settings);
 }
+function approvalCard(title: string, rows: [string, string][]) {
+  const card = el("section", undefined, "approval-card");
+  card.setAttribute("aria-label", title);
+  card.append(el("h2", title));
+  const list = el("dl");
+  for (const [label, value] of rows) {
+    const row = el("div");
+    row.append(
+      el("dt", label),
+      el(
+        "dd",
+        value,
+        /^0x[0-9a-fA-F]{40}$/.test(value) ? "approval-address" : "",
+      ),
+    );
+    list.append(row);
+  }
+  card.append(list);
+  return card;
+}
+function approvalNotice(text: string) {
+  return el("p", text, "approval-notice");
+}
 function approval(item: Approval) {
-  screen(
-    item.method === "eth_requestAccounts"
-      ? "Connect this site?"
-      : "Review site request",
+  const permission =
+    item.method === "eth_signTypedData_v4"
+      ? spendingPermission(item.params[1])
+      : undefined;
+  const intent = item.preview?.interpretation;
+  const onchainAllowance = intent?.kind === "approval";
+  let title = "Review site request";
+  let action = "Approve request";
+  if (item.method === "eth_requestAccounts") {
+    title = "Connect this site?";
+    action = "Connect";
+  } else if (item.method === "personal_sign") {
+    title = "Sign message";
+    action = "Sign message";
+  } else if (item.method === "eth_signTypedData_v4") {
+    title = permission ? "Sign spending permission" : "Sign structured data";
+    action = title;
+  } else if (item.preview) {
+    title = onchainAllowance
+      ? "Review spending approval"
+      : "Review transaction";
+    action = onchainAllowance
+      ? "Approve spending"
+      : intent?.kind === "unknown"
+        ? "Send contract transaction"
+        : "Send transaction";
+  } else if (item.method === "wallet_switchEthereumChain") {
+    title = "Switch network";
+    action = "Switch network";
+  } else if (item.method === "wallet_addEthereumChain") {
+    title = "Add network";
+    action = "Add network";
+  }
+  screen(title);
+  const account = state.vault.accounts.find(
+    (account) => account.address.toLowerCase() === item.account.toLowerCase(),
+  );
+  const network = state.networks.items.find(
+    (network) => network.id === item.chainId,
   );
   app.append(
-    el("h2", item.origin),
-    el("p", `${item.method} · chain ${item.chainId}`),
-    el("p", item.account, "address"),
+    approvalCard("Requesting site", [
+      ["Website", item.origin],
+      ["Signing account", `${account?.name ?? "Account"} · ${item.account}`],
+      [
+        "Network",
+        `${network?.name ?? "Unknown network"} · chain ${item.chainId}`,
+      ],
+    ]),
   );
   if (item.method === "eth_requestAccounts")
     app.append(
       el(
         "p",
-        "This site will see your selected account address. Every signature or transaction still needs your approval.",
+        "This site will see this account’s address. Signatures and transactions still require separate approval.",
+        "request-note",
       ),
     );
-  else if (item.method === "personal_sign")
+  if (item.method === "personal_sign") {
+    const message = messageContent(item.params[0]);
+    app.append(
+      approvalNotice(
+        message.readable
+          ? "A message signature can authorize actions or access. It can be used outside the selected network."
+          : "Unreadable message: these bytes cannot be displayed as plain text without hiding or replacing characters. We couldn’t interpret this request.",
+      ),
+    );
+    app.append(
+      approvalCard(
+        message.readable ? "Complete message" : "Exact message bytes",
+        [[message.readable ? "Message" : "Hexadecimal bytes", message.text]],
+      ),
+    );
+    if (!message.readable) action = "Sign unreadable message";
     app.append(
       el(
         "p",
-        "A message signature can grant access or authorize an action. Only sign a message you understand.",
+        "Signing creates a signature for the site. It does not send a transaction or charge a network fee now.",
+        "request-note",
       ),
     );
-  else if (item.method === "eth_signTypedData_v4")
-    app.append(
-      el(
-        "p",
-        "Typed signatures may grant spending rights. Read every field, especially the spender, amount, and verifying contract.",
-      ),
-    );
-  app.append(
-    el(
-      "p",
-      `Phishing list: ${item.protection.status}. A site not listed can still be malicious.`,
-    ),
-  );
+  }
+  if (item.method === "eth_signTypedData_v4") {
+    const data = readTypedData(item.params[1]);
+    const text = (value: unknown) =>
+      typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    const domainLabels: Record<string, string> = {
+      name: "Application (site supplied)",
+      version: "Version",
+      verifyingContract: "Verifying contract",
+      chainId: "Signed chain ID",
+      salt: "Domain salt",
+    };
+    const domainCard = approvalCard("Application and contract", [
+      ["Message type", data.primaryType],
+      ...Object.entries(data.domain).map(([key, value]): [string, string] => [
+        domainLabels[key] ?? key,
+        text(value),
+      ]),
+      ...(data.domain.verifyingContract === undefined
+        ? [["Verifying contract", "Not supplied"] as [string, string]]
+        : []),
+    ]);
+    if (data.domain.chainId === undefined)
+      app.append(
+        approvalNotice(
+          "No chain ID in the signature domain. The selected network does not restrict where this signature can be used.",
+        ),
+      );
+    if (permission) {
+      app.append(
+        approvalNotice(
+          permission.unlimited
+            ? "Unlimited spending"
+            : permission.amount === "0"
+              ? "Permission sets the allowance to zero"
+              : "This signature grants spending permission",
+        ),
+      );
+      app.append(
+        approvalCard("Declared spending permission", [
+          [
+            "Format",
+            permission.kind === "erc2612"
+              ? "ERC-2612 Permit"
+              : "Permit2 PermitSingle",
+          ],
+          ["Token contract", permission.token],
+          ["Spender", permission.spender],
+          ...(permission.owner
+            ? [["Owner", permission.owner] as [string, string]]
+            : []),
+          [
+            "Allowance",
+            permission.unlimited
+              ? `Unlimited spending (${permission.amount} token base units)`
+              : `${permission.amount} token base units`,
+          ],
+          ["Signature deadline", signatureDeadline(permission.deadline)],
+          [
+            "Allowance expiry",
+            permission.expiration === undefined
+              ? "No automatic expiry"
+              : permission.expiration === "0"
+                ? "Expires when submitted (0)"
+                : signatureDeadline(permission.expiration),
+          ],
+          ["Nonce", permission.nonce],
+        ]),
+      );
+      if (
+        permission.owner &&
+        permission.owner.toLowerCase() !== item.account.toLowerCase()
+      )
+        app.append(
+          approvalNotice(
+            "The permission owner differs from the signing account.",
+          ),
+        );
+      app.append(
+        el(
+          "p",
+          "This matches a known permission format. The contract’s identity and behavior have not been verified. The site can submit this signature later; signing itself charges no network fee.",
+          "request-note",
+        ),
+      );
+      if (permission.kind === "erc2612")
+        app.append(
+          el(
+            "p",
+            "The signature deadline limits submission, not the lifetime of an allowance already granted.",
+            "request-note",
+          ),
+        );
+    } else
+      app.append(
+        approvalNotice(
+          "We couldn’t interpret this request. These fields may authorize spending or other actions. The application name is supplied by the site.",
+        ),
+      );
+    if (!permission)
+      app.append(
+        approvalCard(
+          "Message fields",
+          Object.entries(data.message).map(([key, value]) => [
+            key,
+            text(value),
+          ]),
+        ),
+      );
+    app.append(domainCard);
+  }
   if (item.preview) {
+    if (onchainAllowance) {
+      const amount = intent.allowance as string;
+      const unlimited = amount === (2n ** 256n - 1n).toString();
+      app.append(
+        approvalNotice(
+          unlimited
+            ? "Unlimited spending"
+            : amount === "0"
+              ? "Revoke spending permission"
+              : "Allow this spender to use your tokens",
+        ),
+      );
+      app.append(
+        approvalCard("Declared spending permission", [
+          ["Token contract", item.preview.to],
+          ["Spender", intent.spender as string],
+          [
+            "Allowance",
+            unlimited
+              ? `Unlimited spending (${amount} token base units)`
+              : `${amount} token base units`,
+          ],
+          ["Allowance expiry", "No automatic expiry in this approval"],
+        ]),
+      );
+      app.append(
+        el(
+          "p",
+          "This sends an approval transaction and pays a network fee. It does not transfer these tokens now; the spender can use the allowance later. Decoded intent does not verify the contract’s behavior.",
+          "request-note",
+        ),
+      );
+      if (amount === "0") action = "Revoke spending";
+    } else if (intent?.kind === "unknown")
+      app.append(
+        approvalNotice(
+          "We couldn’t interpret this request. The contract may move assets or change permissions beyond the native amount shown.",
+        ),
+      );
     app.append(transactionSummary(item.preview, true));
     app.append(
-      el("p", item.preview.interpretation.summary),
-      el("p", item.preview.interpretation.warning),
-      el("p", item.preview.simulation.message),
+      approvalCard("Network execution check", [
+        ["RPC result", item.preview.simulation.message],
+      ]),
     );
-    if (item.preview.interpretation.kind === "approval")
+    if (!onchainAllowance)
       app.append(
-        walletForm(
-          [
-            {
-              key: "amount",
-              label: "Allowance in token base units",
-              help: "0 revokes allowance. Editing creates a fresh review with the exact new amount.",
-            },
-          ],
-          "Update allowance",
-          async (values) => {
-            state = await rpc("editDappAllowance", {
-              id: item.id,
-              amount: values.amount,
-            });
-            const updated = state.approvals.find(
-              (value) => value.id === item.id,
-            );
-            if (updated) approval(updated);
-            else home();
-          },
+        el(
+          "p",
+          `${intent?.summary ?? ""} ${intent?.warning ?? ""}`,
+          "request-note",
         ),
       );
   }
-  if (item.method === "personal_sign") {
-    try {
-      const hex = String(item.params[0]).slice(2);
-      const bytes = Uint8Array.from(hex.match(/.{2}/g) ?? [], (value) =>
-        Number.parseInt(value, 16),
+  if (onchainAllowance || permission) {
+    const editor = el("details", undefined, "transfer-details");
+    editor.append(el("summary", "Reduce allowance"));
+    editor.append(
+      walletForm(
+        [
+          {
+            key: "amount",
+            label: "Allowance in token base units",
+            help: "Use whole base units. 0 requests a zero allowance. Saving creates a new review before you sign.",
+          },
+        ],
+        "Update allowance",
+        async (values) => {
+          state = await rpc("editDappAllowance", {
+            id: item.id,
+            amount: values.amount,
+          });
+          const updated = state.approvals.find(
+            (value) =>
+              value.origin === item.origin && value.method === item.method,
+          );
+          if (updated) approval(updated);
+          else home();
+        },
+      ),
+    );
+    app.append(editor);
+  }
+  if (
+    item.method === "wallet_switchEthereumChain" ||
+    item.method === "wallet_addEthereumChain"
+  ) {
+    app.append(
+      approvalCard(
+        "Requested network",
+        Object.entries(item.params[0] as Record<string, unknown>).map(
+          ([key, value]) => [key, JSON.stringify(value, null, 2)],
+        ),
+      ),
+    );
+    if (item.method === "wallet_addEthereumChain")
+      app.append(
+        approvalNotice(
+          "This RPC provider will receive your requests and can report misleading balances or transaction results. An existing chain ID replaces its endpoint.",
+        ),
       );
-      app.append(el("pre", new TextDecoder().decode(bytes), "secret"));
-    } catch {}
   }
   const details = el("details", undefined, "transfer-details");
   details.append(
     el("summary", "Exact request details"),
+    el("p", item.method),
     el("pre", JSON.stringify(item.params, null, 2), "secret"),
   );
-  app.append(details);
-  for (const note of app.querySelectorAll(":scope > p"))
-    note.classList.add("request-note");
-  const actions = el("div", undefined, "action-grid");
+  app.append(
+    details,
+    el(
+      "small",
+      `Phishing list: ${item.protection.status}. A site not listed can still be malicious.`,
+      "request-note",
+    ),
+  );
+  const actions = el("div", undefined, "action-grid approval-actions");
   actions.append(
     button(
       "Reject request",
       () => attempt(() => command("rejectDapp", { id: item.id })),
       true,
     ),
-    button(
-      item.method === "eth_requestAccounts" ? "Connect" : "Approve request",
-      () => attempt(() => command("approveDapp", { id: item.id })),
+    button(action, () =>
+      attempt(() => command("approveDapp", { id: item.id })),
     ),
   );
   app.append(actions);
 }
+
 function settings() {
   screen("Settings");
   const actions = el("div", undefined, "action-grid settings-grid");

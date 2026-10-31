@@ -220,9 +220,7 @@ export function messageContent(value: unknown) {
     // Hidden formatting/control characters can make the displayed message misleading.
     if (
       // biome-ignore lint/suspicious/noControlCharactersInRegex: Identify invisible/control bytes in signing messages.
-      /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/u.test(
-        text,
-      )
+      /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\p{Cf}]/u.test(text)
     )
       throw new Error();
     return { readable: true, text: text || "(Empty message)", hex };
