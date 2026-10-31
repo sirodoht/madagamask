@@ -480,11 +480,19 @@ test("production UI imports, sends native assets, imports a token, and sends tok
     }
     await popup.setViewportSize({ width: 380, height: 600 });
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const copiedAddress = await popup.locator(".address-copy").textContent();
+    const beforeCopy = await popup.locator(".shell").boundingBox();
     await popup.locator(".address-copy").click();
-    await expect(popup.getByRole("status")).toHaveText("Address copied.");
-    expect(await popup.evaluate(() => navigator.clipboard.readText())).toBe(
-      await popup.locator(".address-copy").textContent(),
+    await expect(popup.locator(".address-feedback")).toHaveText(
+      "Address copied ✓",
     );
+    await expect(popup.getByRole("status")).toHaveText("");
+    expect(await popup.locator(".shell").boundingBox()).toEqual(beforeCopy);
+    expect(await popup.evaluate(() => navigator.clipboard.readText())).toBe(
+      copiedAddress,
+    );
+    await expect(popup.locator(".address-feedback")).toHaveText("");
+    await expect(popup.locator(".address-value")).toBeVisible();
     await popup.screenshot({
       path: "artifacts/wallet-home.png",
       fullPage: true,

@@ -17,6 +17,7 @@ const accountAddress = document.getElementById(
 ) as HTMLElement;
 let state: View;
 let secretTimer: ReturnType<typeof setTimeout> | undefined;
+let copyTimer: ReturnType<typeof setTimeout> | undefined;
 let showingSecret = false;
 let busy = false;
 let uiGeneration = 0;
@@ -66,6 +67,7 @@ async function attempt(action: () => Promise<void>) {
 function screen(title?: string) {
   screenId += 1;
   clearTimeout(secretTimer);
+  clearTimeout(copyTimer);
   showingSecret = false;
   app.replaceChildren(...(title ? [el("h1", title)] : []));
   brand.hidden = false;
@@ -804,13 +806,30 @@ function home() {
     });
     accountControl.replaceChildren(select, menu);
     if (account) {
-      const address = button(account.address, () =>
-        attempt(async () => {
+      const value = el("span", account.address, "address-value");
+      const feedback = el("span", "", "address-feedback");
+      feedback.setAttribute("aria-live", "polite");
+      const address = button("", async () => {
+        if (address.disabled) return;
+        address.disabled = true;
+        clearTimeout(copyTimer);
+        try {
           await navigator.clipboard.writeText(account.address);
-          status.textContent = "Address copied.";
-        }),
-      );
+          feedback.textContent = "Address copied ✓";
+        } catch {
+          feedback.textContent = "Could not copy. Try again.";
+        } finally {
+          address.disabled = false;
+        }
+        if (!address.isConnected) return;
+        address.classList.add("show-feedback");
+        copyTimer = setTimeout(() => {
+          address.classList.remove("show-feedback");
+          feedback.textContent = "";
+        }, 2000);
+      });
       address.className = "address address-copy";
+      address.append(value, feedback);
       address.title = "Copy address";
       address.setAttribute("aria-label", `Copy address ${account.address}`);
       accountAddress.hidden = false;

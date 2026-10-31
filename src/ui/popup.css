@@ -267,6 +267,9 @@ small {
   font-size: 1.25rem;
 }
 .address-copy {
+  display: grid;
+  align-items: center;
+  justify-items: start;
   width: 100%;
   min-height: 32px;
   padding: 4px 0 0;
@@ -279,6 +282,17 @@ small {
 }
 .address-copy:hover {
   color: var(--color-accent);
+}
+.address-value,
+.address-feedback {
+  grid-area: 1 / 1;
+}
+.address-feedback {
+  color: var(--color-accent);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.show-feedback .address-value {
+  visibility: hidden;
 }
 .status:empty {
   padding: 0;

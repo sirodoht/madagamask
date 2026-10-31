@@ -115,3 +115,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Grouped the full clickable address directly under the account/header row, removing the extra main-content gap. Send now uses the same neutral button style as the other home actions.
 - Replaced the native account select with an anchored, wallet-styled popover menu. Added selected-account indicators, arrow/Home/End navigation, Enter selection, Escape/Tab dismissal, outside-click dismissal, and focus restoration after selection. Screen changes remove the menu.
 - Typecheck, lint, both package checks, and four Chrome browser flows pass, including a new multi-account keyboard/dismissal check and the existing clipboard/no-overflow/transfer coverage. Inspected the open menu in isolated Firefox 159; the home occupies about 410 CSS pixels vertically. Rebuilt both browser distributions and archives.
+
+### Inline address-copy feedback — 2026-10-31
+
+- Clicking the address now shows “Address copied ✓” in the same place for two seconds, then restores the full address. Copy failures also report inline. No bottom status or loading message is added; the address row retains its dimensions during feedback.
+- Lint, typecheck, both package checks, and the Chrome wallet transfer flow pass. Clipboard coverage verifies the copied value, inline success, empty bottom status, unchanged layout bounds, and address restoration. Both distributions and archives rebuilt.
