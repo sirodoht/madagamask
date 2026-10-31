@@ -738,6 +738,12 @@ test("production UI imports, sends native assets, imports a token, and sends tok
       }),
     ).not.toContain("Working…");
     await networkProgress.dispose();
+    const beforeRefresh = await popup.locator(".shell").boundingBox();
+    await popup
+      .getByRole("button", { name: "Refresh balance", exact: true })
+      .click();
+    await expect(popup.locator(".balance")).toHaveText("10000 ETH");
+    expect(await popup.locator(".shell").boundingBox()).toEqual(beforeRefresh);
     for (const width of [320, 380]) {
       await popup.setViewportSize({ width, height: 600 });
       expect(

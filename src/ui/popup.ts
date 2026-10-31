@@ -997,8 +997,10 @@ function home() {
     const account = accountHeader();
     for (const item of state.approvals)
       app.append(button(`Review ${item.origin}`, () => approval(item)));
-    const networkLabel = el("label", "Network", "stack field");
+    const overview = el("section", undefined, "wallet-overview");
+    overview.setAttribute("aria-label", "Balance and network");
     const networkSelect = el("select");
+    networkSelect.className = "network-picker";
     networkSelect.setAttribute("aria-label", "Network");
     state.networks.items.forEach((network) => {
       const option = el("option", network.name);
@@ -1012,16 +1014,22 @@ function home() {
         false,
       );
     });
-    networkLabel.append(networkSelect);
-    app.append(networkLabel);
+    overview.append(networkSelect);
+    app.append(overview);
     if (account) {
       const balance = el("p", "Loading balance…", "balance");
-      app.append(balance);
+      balance.dataset.state = "loading";
+      balance.setAttribute("aria-live", "polite");
+      const balanceRow = el("div", undefined, "balance-row");
+      balanceRow.append(balance);
+      overview.append(balanceRow);
       const currentScreen = screenId;
       let refreshing = false;
       const refresh = async () => {
         if (refreshing) return;
         refreshing = true;
+        refreshButton.disabled = true;
+        balance.dataset.state = "loading";
         balance.textContent = "Loading balance…";
         try {
           const value = await rpc<{
@@ -1034,25 +1042,42 @@ function home() {
             currentScreen === screenId &&
             value.address === account.address &&
             value.chainId === state.networks.selected
-          )
+          ) {
             balance.textContent = `${value.amount} ${value.symbol}`;
+            balance.dataset.state = "ready";
+          }
         } catch {
-          if (currentScreen === screenId)
+          if (currentScreen === screenId) {
             balance.textContent = "Balance unavailable. Refresh to try again.";
+            balance.dataset.state = "error";
+          }
         } finally {
           refreshing = false;
+          refreshButton.disabled = false;
         }
       };
-      const actions = el("div", undefined, "action-grid");
+      const refreshButton = button("↻", refresh, true);
+      refreshButton.className = "balance-refresh";
+      refreshButton.setAttribute("aria-label", "Refresh balance");
+      refreshButton.title = "Refresh balance";
+      balanceRow.append(refreshButton);
+      const actions = el(
+        "div",
+        undefined,
+        "action-grid wallet-primary-actions",
+      );
       actions.append(
-        button("Refresh balance", refresh, true),
-        button("Receive", () => receive(), true),
         button("Send", () => send(), true),
-        button("Activity", () => attempt(() => activity()), true),
+        button("Receive", () => receive(), true),
+      );
+      const navigation = el("nav", undefined, "wallet-nav");
+      navigation.setAttribute("aria-label", "Wallet navigation");
+      navigation.append(
         button("Tokens", () => attempt(() => tokens()), true),
+        button("Activity", () => attempt(() => activity()), true),
         button("Settings", () => settings(), true),
       );
-      app.append(actions);
+      app.append(actions, navigation);
       void refresh();
     }
   }
