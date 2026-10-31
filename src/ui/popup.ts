@@ -167,18 +167,6 @@ function renameWallet(wallet: PublicWallet, returnTo: () => void) {
     returnTo,
   );
 }
-function manageWallet(wallet: PublicWallet) {
-  screen(wallet.name);
-  app.append(el("p", walletLabels[wallet.kind]));
-  const returnTo = () => manageWallet(wallet);
-  if (wallet.kind !== "privateKey")
-    app.append(button("Add account", () => addAccount(wallet, returnTo), true));
-  app.append(
-    button("Rename wallet", () => renameWallet(wallet, returnTo), true),
-    button("Back up wallet", () => backup(wallet, returnTo), true),
-  );
-  back();
-}
 function addWallet(returnTo: () => void = home) {
   screen("Add wallet");
   const choose = (kind: WalletKind, generate = false) => {
@@ -867,13 +855,95 @@ function home() {
         el("h2", wallet.name),
         el("span", walletLabels[wallet.kind], "wallet-kind"),
       );
-      const manage = menuAction(
+      const submenu = el("div", undefined, "wallet-menu");
+      submenu.id = `wallet-menu-${wallet.id}`;
+      submenu.popover = "auto";
+      submenu.setAttribute("role", "menu");
+      submenu.setAttribute("aria-label", `${wallet.name} actions`);
+      const manage = button(
         "⋯",
-        () => manageWallet(wallet),
-        "wallet-manage",
+        () => {
+          submenu.togglePopover();
+          if (submenu.matches(":popover-open")) items[0]?.focus();
+        },
+        true,
       );
+      manage.id = `manage-${wallet.id}`;
+      manage.className = "wallet-manage";
+      manage.tabIndex = -1;
+      manage.setAttribute("role", "menuitem");
       manage.setAttribute("aria-label", `Manage ${wallet.name}`);
-      heading.append(title, manage);
+      manage.setAttribute("aria-haspopup", "menu");
+      manage.setAttribute("aria-controls", submenu.id);
+      manage.setAttribute("aria-expanded", "false");
+      options.push(manage);
+      const returnTo = () => {
+        home();
+        (document.getElementById("account-menu") as HTMLElement).showPopover();
+        const trigger = document.getElementById(manage.id);
+        trigger?.scrollIntoView({ block: "nearest" });
+        trigger?.click();
+      };
+      const items: HTMLButtonElement[] = [];
+      const action = (label: string, run: () => void) => {
+        const item = button(
+          label,
+          () => {
+            menu.hidePopover();
+            run();
+          },
+          true,
+        );
+        item.className = "account-option";
+        item.setAttribute("role", "menuitem");
+        item.tabIndex = -1;
+        items.push(item);
+        submenu.append(item);
+      };
+      if (wallet.kind !== "privateKey")
+        action("Add account", () => addAccount(wallet, returnTo));
+      action("Rename wallet", () => renameWallet(wallet, returnTo));
+      action("Back up wallet", () => backup(wallet, returnTo));
+      submenu.addEventListener("beforetoggle", (event) => {
+        const open = (event as ToggleEvent).newState === "open";
+        manage.setAttribute("aria-expanded", String(open));
+        if (!open) return;
+        const bounds = manage.getBoundingClientRect();
+        const width = Math.min(192, innerWidth - 16);
+        const height = items.length * 44 + 10;
+        submenu.style.width = `${width}px`;
+        submenu.style.left = `${Math.max(8, Math.min(bounds.right - width, innerWidth - width - 8))}px`;
+        submenu.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, innerHeight - height - 8))}px`;
+        submenu.style.maxHeight = `${innerHeight - 16}px`;
+      });
+      manage.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowRight") return;
+        event.preventDefault();
+        event.stopPropagation();
+        submenu.showPopover();
+        items[0]?.focus();
+      });
+      submenu.addEventListener("keydown", (event) => {
+        event.stopPropagation();
+        const current = items.indexOf(
+          document.activeElement as HTMLButtonElement,
+        );
+        let next = current;
+        if (event.key === "ArrowDown") next = (current + 1) % items.length;
+        else if (event.key === "ArrowUp")
+          next = (current - 1 + items.length) % items.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = items.length - 1;
+        else if (["Escape", "ArrowLeft", "Tab"].includes(event.key)) {
+          event.preventDefault();
+          submenu.hidePopover();
+          manage.focus();
+          return;
+        } else return;
+        event.preventDefault();
+        items[next]?.focus();
+      });
+      heading.append(title, manage, submenu);
       group.append(heading);
       for (const { account, index } of members) {
         const option = button(

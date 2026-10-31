@@ -222,7 +222,8 @@ small {
 .account-toggle::after {
   content: "⌄";
 }
-.account-menu {
+.account-menu,
+.wallet-menu {
   position: fixed;
   inset: auto;
   margin: 0;
@@ -372,4 +373,8 @@ main h1 {
 }
 .settings-account {
   font-size: 0.75rem;
+}
+
+.wallet-menu .account-option {
+  padding: 8px;
 }

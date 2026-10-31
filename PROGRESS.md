@@ -182,3 +182,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Chrome 156.0.8078.76 lifecycle checks pass: 45-second idle continuity, restored unlock after forced worker termination, one-minute expiry, locked extension reload/version update, and locked browser restart with preserved address. The bundled Chrome-for-Testing run passed idle/restoration/expiry but timed out in automated developer reload; rerunning the complete suite with installed Chrome passed.
 - Firefox 159 lifecycle checks pass: fresh background restores the session after 40 seconds, expiry locks and clears session material after 65 seconds, and extension reload preserves the vault while locking. Nine local-chain transaction tests pass.
 - Final validation: lint/typecheck, 38 unit tests, nine Chrome browser flows (two optional external checks skipped), both package checks, and real Chrome/Firefox lifecycle checks. Inspected the final three-source Chrome dropdown and Firefox grouping. Both distributions and ZIP archives rebuilt. Implementation commits 3f73177 and 0d05931 are pushed; this entry records final verification.
+
+### Compact wallet action dropdown — 2026-10-31
+
+- Replaced the full-screen wallet management page with a small nested dropdown anchored to the three-dot button. The account list stays visible; actions remain scoped to that wallet. Back from an action reopens its dropdown.
+- Added keyboard navigation, Escape/Left dismissal with focus restoration, outside-click dismissal, and viewport-aware positioning. Private-key wallets omit Add account.
+- Lint/typecheck, both package checks, and three targeted Chrome browser flows pass, including compact dimensions at 320px width, keyboard/outside dismissal, rename, and exact-wallet backup. Inspected Chrome and Firefox 159 screenshots and confirmed nested dismissal in Firefox. Both browser distributions and archives rebuilt.

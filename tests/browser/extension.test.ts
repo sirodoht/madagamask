@@ -943,6 +943,7 @@ test("external EIP-6963 demo interoperability", async () => {
 });
 
 test("named wallets expose their source, child accounts and wallet-specific actions", async () => {
+  await popup.setViewportSize({ width: 320, height: 600 });
   const password = "disposable-multi-wallet-password";
   await popup
     .getByRole("button", { name: "Import wallet", exact: true })
@@ -965,7 +966,49 @@ test("named wallets expose their source, child accounts and wallet-specific acti
   await popup
     .getByRole("menuitem", { name: "Manage Wallet 1", exact: true })
     .click();
-  await popup.getByRole("button", { name: "Rename wallet" }).click();
+  const actions = popup.getByRole("menu", {
+    name: "Wallet 1 actions",
+    exact: true,
+  });
+  await expect(actions).toBeVisible();
+  await expect(
+    popup.getByRole("menu", { name: "Accounts", exact: true }),
+  ).toBeVisible();
+  await expect(popup.getByLabel("Network", { exact: true })).toBeVisible();
+  const bounds = await actions.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds?.width).toBeLessThanOrEqual(200);
+  expect(bounds?.height).toBeLessThanOrEqual(150);
+  expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(320);
+  await expect(
+    actions.getByRole("menuitem", { name: "Add account", exact: true }),
+  ).toBeFocused();
+  await popup.keyboard.press("ArrowDown");
+  await expect(
+    actions.getByRole("menuitem", { name: "Rename wallet" }),
+  ).toBeFocused();
+  await popup.keyboard.press("Escape");
+  await expect(actions).toBeHidden();
+  const manage = popup.getByRole("menuitem", {
+    name: "Manage Wallet 1",
+    exact: true,
+  });
+  await expect(manage).toBeFocused();
+  await expect(manage).toHaveAttribute("aria-expanded", "false");
+  await popup.keyboard.press("ArrowRight");
+  await expect(actions).toBeVisible();
+  await popup.screenshot({
+    path: "artifacts/wallet-actions-chrome.png",
+    fullPage: true,
+  });
+  await popup.locator("body").click({ position: { x: 4, y: 4 } });
+  await expect(actions).toBeHidden();
+  await expect(
+    popup.getByRole("menu", { name: "Accounts", exact: true }),
+  ).toBeHidden();
+  await selector.click();
+  await manage.click();
+  await popup.getByRole("menuitem", { name: "Rename wallet" }).click();
   await popup.getByLabel("Wallet name").fill("Trading");
   await popup.getByRole("button", { name: "Save name" }).click();
   await selector.click();
@@ -1032,25 +1075,25 @@ test("named wallets expose their source, child accounts and wallet-specific acti
   await popup
     .getByRole("menuitem", { name: "Manage Trading", exact: true })
     .click();
-  await popup.getByRole("button", { name: "Back up wallet" }).click();
+  await popup.getByRole("menuitem", { name: "Back up wallet" }).click();
   await popup.getByLabel("Password", { exact: true }).fill(password);
   await popup.getByRole("button", { name: "Reveal backup" }).click();
   await expect(popup.locator(".secret")).toHaveText(`0x${seed}`);
   await popup.getByRole("button", { name: "Back", exact: true }).click();
   await expect(popup.locator(".secret")).toHaveCount(0);
   await expect(
-    popup.getByRole("heading", { name: "Trading", exact: true }),
+    popup.getByRole("menu", { name: "Trading actions", exact: true }),
   ).toBeVisible();
-  await popup.getByRole("button", { name: "Back", exact: true }).click();
-  await selector.click();
+  await popup.keyboard.press("Escape");
   await popup
     .getByRole("menuitem", { name: "Manage gox", exact: true })
     .click();
   await expect(
-    popup.getByRole("button", { name: "Add account", exact: true }),
+    popup
+      .getByRole("menu", { name: "gox actions" })
+      .getByRole("menuitem", { name: "Add account", exact: true }),
   ).toHaveCount(0);
-  await popup.getByRole("button", { name: "Back", exact: true }).click();
-  await selector.click();
+  await popup.keyboard.press("Escape");
   await popup
     .getByRole("menuitem", { name: "+ Add wallet", exact: true })
     .click();
