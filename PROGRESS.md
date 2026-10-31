@@ -160,3 +160,7 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Removed the source subtitle from the closed account selector and restored its compact header height. Renamed the dropdown's “Imported accounts” group to “Private key accounts,” describing the backup source instead of how accounts were added. No storage or account data changed.
 - Lint, typecheck, both package checks, and two targeted Chrome layout/account-navigation flows pass. Both browser distributions and archives rebuilt.
+
+### Remove dropdown backup notices — 2026-10-31
+
+- Removed both backup explanation lines from the account dropdown. Lint and both package checks pass; both distributions and archives rebuilt. Discussing named-wallet/account grouping separately before changing the vault model.

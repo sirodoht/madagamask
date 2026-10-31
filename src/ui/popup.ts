@@ -808,15 +808,7 @@ function home() {
       group.setAttribute("role", "group");
       group.setAttribute("aria-label", title);
       const heading = el("div", undefined, "account-group-heading");
-      heading.append(
-        el("h2", title),
-        el(
-          "p",
-          imported
-            ? "Backup: each private key separately"
-            : "Backup: one phrase for this group",
-        ),
-      );
+      heading.append(el("h2", title));
       group.append(heading);
       for (const { account, index } of members) {
         const option = button(
