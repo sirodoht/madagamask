@@ -97,3 +97,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Replaced the promotional welcome heading with the plain label “Ethereum wallet” and updated the existing browser selectors. Rebuilt both browser packages.
 - Lint, typecheck, 24 unit tests, and both package checks pass. The initial sandboxed check could not open the local RPC test server; rerunning with local-server access passed. Browser flows were not rerun for this text-only change. Current archive hashes are in `artifacts/SHA256SUMS`; the verification report retains the original alpha baseline.
+
+### Compact wallet header — 2026-10-31
+
+- Combined the separate alpha badge and warning into one short notice: “Testnet alpha · Use test keys only.” Reduced shell padding, logo size, heading size, and the gap before the wallet controls; removed the large extra top padding in tab views.
+- Lint and both package checks pass. Three targeted Chrome browser checks pass, covering onboarding, narrow/enlarged-text layouts, and native/token/dapp transaction screens. Inspected Chrome and isolated Firefox 159 screenshots; the Firefox wallet heading starts about 103 CSS pixels from the top. Both browser distributions and ZIPs rebuilt.
+- Firefox remains on Manifest V3; its session lifecycle behavior is unchanged, as requested.
