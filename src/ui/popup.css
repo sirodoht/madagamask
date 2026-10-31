@@ -214,10 +214,28 @@ small {
   min-width: 0;
 }
 .account-toggle {
+  position: relative;
   width: 100%;
   justify-content: space-between;
   text-align: left;
   overflow-wrap: anywhere;
+}
+.account-switch-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: inherit;
+  visibility: hidden;
+  pointer-events: none;
+}
+.account-toggle:hover .account-name,
+.account-toggle:focus-visible .account-name {
+  visibility: hidden;
+}
+.account-toggle:hover .account-switch-label,
+.account-toggle:focus-visible .account-switch-label {
+  visibility: visible;
 }
 .account-option {
   display: flex;

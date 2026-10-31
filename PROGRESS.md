@@ -233,3 +233,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Settings now contains only phishing-list updates, connected sites, network configuration, password changes, auto-lock, and Reset all wallets. Removed the selected-wallet subtitle and wallet/account management shortcuts. The reset form and delete button explicitly name all local wallets.
 - Added Back up wallet to each wallet’s three-dot menu, bound to that wallet’s ID. Wallet rename/add-account and account rename stay in their existing menus; Add wallet remains below the account list. Back from backup returns to the list.
 - Lint/typecheck, both package checks, and four Chrome browser flows pass. Coverage verifies global-only Settings/navigation, wallet creation and backup confirmation, and revealing a nonselected seed wallet’s exact backup without switching accounts. Inspected compact Settings. Both distributions and archives rebuilt.
+
+### Account button action on hover — 2026-10-31
+
+- The account header button shows Switch account on hover or keyboard focus, restoring the account name otherwise. The label overlays the existing name so button dimensions stay unchanged. On the account list it shows Back to account, matching that screen’s return action. Accessible descriptions include the account name and action.
+- Lint/typecheck, both package checks, and two Chrome wallet flows pass, including hover restoration, keyboard focus, unchanged button bounds, and account selection. Verified actual pointer hover in Firefox 159 and inspected the result. Both distributions and archives rebuilt.

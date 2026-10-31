@@ -286,10 +286,19 @@ function accountHeader(onSelect: () => void = wallets) {
   const select = button(account?.name ?? "Account", onSelect, true);
   const selectedLabel = el("span", account?.name ?? "Account", "account-name");
   selectedLabel.id = "selected-account-label";
-  select.replaceChildren(selectedLabel);
+  const actionLabel = el(
+    "span",
+    onSelect === wallets ? "Switch account" : "Back to account",
+    "account-switch-label",
+  );
+  actionLabel.id = "account-switch-label";
+  select.replaceChildren(selectedLabel, actionLabel);
   select.classList.add("account-toggle");
   select.setAttribute("aria-label", "Account");
-  select.setAttribute("aria-describedby", selectedLabel.id);
+  select.setAttribute(
+    "aria-describedby",
+    `${selectedLabel.id} ${actionLabel.id}`,
+  );
   accountControl.replaceChildren(select);
   if (account) {
     const value = el("span", account.address, "address-value");

@@ -280,7 +280,23 @@ test("wallet screen selects accounts and renames without changing selection", as
   await popup.setViewportSize({ width: 320, height: 600 });
   const selector = popup.getByRole("button", { name: "Account", exact: true });
   const address = await popup.locator(".address-copy").textContent();
-  await selector.focus();
+  await popup.mouse.move(0, 0);
+  const beforeHover = await selector.boundingBox();
+  await expect(selector.locator(".account-name")).toBeVisible();
+  await selector.hover();
+  await expect(selector.locator(".account-switch-label")).toBeVisible();
+  await expect(selector.locator(".account-switch-label")).toHaveText(
+    "Switch account",
+  );
+  await expect(selector.locator(".account-name")).toBeHidden();
+  expect(await selector.boundingBox()).toEqual(beforeHover);
+  await popup.mouse.move(0, 0);
+  await expect(selector.locator(".account-name")).toBeVisible();
+  await expect(selector.locator(".account-switch-label")).toBeHidden();
+  await popup.getByRole("button", { name: "Lock wallet", exact: true }).focus();
+  await popup.keyboard.press("Shift+Tab");
+  await expect(selector.locator(".account-switch-label")).toBeVisible();
+  expect(await selector.boundingBox()).toEqual(beforeHover);
   const header = await popup.locator(".brand-row").boundingBox();
   const addressBounds = await popup.locator("#account-address").boundingBox();
   await popup.keyboard.press("Enter");
@@ -397,7 +413,7 @@ test("wallet screen selects accounts and renames without changing selection", as
   });
   await second.focus();
   await popup.keyboard.press("Enter");
-  await expect(selector).toHaveText("Second account");
+  await expect(selector.locator(".account-name")).toHaveText("Second account");
   await expect(popup.locator(".address-copy")).not.toHaveText(address ?? "");
   await popup.reload();
   await selector.click();
@@ -1050,7 +1066,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     .click();
   await popup.getByLabel("Account name").fill("Trading two");
   await popup.getByRole("button", { name: "Add account", exact: true }).click();
-  await expect(selector).toHaveText("Trading two");
+  await expect(selector.locator(".account-name")).toHaveText("Trading two");
   const importWallet = async (
     name: string,
     kind: string,
@@ -1069,7 +1085,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     await popup
       .getByRole("button", { name: "Import wallet", exact: true })
       .click();
-    await expect(selector).toHaveText("Account 1");
+    await expect(selector.locator(".account-name")).toHaveText("Account 1");
   };
   await importWallet(
     "Personal",
@@ -1163,7 +1179,7 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
   await popup
     .getByRole("button", { name: "Create wallet", exact: true })
     .click();
-  await expect(selector).toHaveText("Account 1");
+  await expect(selector.locator(".account-name")).toHaveText("Account 1");
   await selector.click();
   await popup
     .getByRole("button", { name: "Wallet actions for Fresh", exact: true })
