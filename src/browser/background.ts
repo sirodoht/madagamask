@@ -6,13 +6,13 @@ import { parseRequest } from "../shared/messages.ts";
 import { authorize } from "./authorize.ts";
 import { createHandler } from "./handler.ts";
 import { HEARTBEAT_KEY, startHeartbeat } from "./heartbeat.ts";
-import { extensionStorage } from "./storage.ts";
+import { databaseStorage, extensionStorage } from "./storage.ts";
 
 declare const BROWSER_TARGET: "chrome" | "firefox";
 const popupUrl = chrome.runtime.getURL("popup.html");
 const handle = createHandler(chrome.runtime.id, popupUrl);
 const wallet = new Wallet(
-  extensionStorage(chrome.storage.local, BROWSER_TARGET === "chrome"),
+  databaseStorage(),
   async () => {
     const meta = (await (
       await fetch(chrome.runtime.getURL("phishing-meta.json"))
@@ -24,9 +24,8 @@ const wallet = new Wallet(
     ).json()) as string[];
     return { updatedAt: meta.fetchedAt, domains };
   },
-  // Firefox session storage is isolated by default, but its local storage is
-  // not. Keep Firefox test-only until local data has an isolated backend.
-  extensionStorage(chrome.storage.session),
+  // Firefox session storage is isolated by default and has no access levels.
+  extensionStorage(chrome.storage.session, BROWSER_TARGET === "chrome"),
 );
 let ready = wallet.ready;
 function endSession() {

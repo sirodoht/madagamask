@@ -3,7 +3,7 @@
   "name": "Madagamask",
   "version": "0.1.0",
   "description": "A small Ethereum wallet for test assets: accounts, tokens, transfers, and dapp approvals. Unaudited testnet alpha.",
-  "permissions": ["storage", "alarms"],
+  "permissions": ["storage", "alarms", "unlimitedStorage"],
   "background": {
     "service_worker": "background.js"
   },

@@ -110,6 +110,35 @@ test.afterEach(async () => {
   if (profile) await rm(profile, { recursive: true, force: true });
 });
 
+function walletDatabase() {
+  return popup.evaluate(
+    () =>
+      new Promise<Record<string, unknown>>((resolve, reject) => {
+        const opened = indexedDB.open("madagamask");
+        opened.onerror = () => reject(opened.error);
+        opened.onsuccess = () => {
+          const state: Record<string, unknown> = {};
+          const database = opened.result;
+          if (!database.objectStoreNames.contains("state")) {
+            database.close();
+            return resolve(state);
+          }
+          const store = database.transaction("state").objectStore("state");
+          const cursor = store.openCursor();
+          cursor.onerror = () => reject(cursor.error);
+          cursor.onsuccess = () => {
+            if (!cursor.result) {
+              database.close();
+              return resolve(state);
+            }
+            state[String(cursor.result.key)] = cursor.result.value;
+            cursor.result.continue();
+          };
+        };
+      }),
+  );
+}
+
 async function localReliabilityWallet() {
   const server = createServer(async (request, response) => {
     let raw = "";
@@ -550,11 +579,27 @@ test("Chrome denies content scripts access to vault and unlock-session storage",
   if (!bound || typeof bound === "string") throw new Error("No site port");
   try {
     await popup.evaluate(() =>
-      Promise.all([
-        chrome.storage.local.set({ securityProbe: "public-test-marker" }),
-        chrome.storage.session.set({ securityProbe: "public-test-marker" }),
-      ]),
+      chrome.storage.session.set({ securityProbe: "public-test-marker" }),
     );
+    await popup.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const opened = indexedDB.open("madagamask");
+          opened.onerror = () => reject(opened.error);
+          opened.onsuccess = () => {
+            const write = opened.result.transaction("state", "readwrite");
+            write
+              .objectStore("state")
+              .put("public-test-marker", "securityProbe");
+            write.onerror = () => reject(write.error);
+            write.oncomplete = () => {
+              opened.result.close();
+              resolve();
+            };
+          };
+        }),
+    );
+    expect((await walletDatabase()).securityProbe).toBe("public-test-marker");
     const site = await context.newPage();
     const cdp = await context.newCDPSession(site);
     const worlds: { id: number; origin: string; name: string }[] = [];
@@ -580,23 +625,29 @@ test("Chrome denies content scripts access to vault and unlock-session storage",
       returnByValue: true,
       expression: `(async () => {
         const result = {};
-        for (const area of ["local", "session"]) {
-          for (const method of ["get", "set"]) {
-            try {
-              await chrome.storage[area][method](method === "get" ? "securityProbe" : { securityProbeWrite: true });
-              result[area + method] = "allowed";
-            } catch { result[area + method] = "denied"; }
-          }
+        for (const method of ["get", "set"]) {
+          try {
+            await chrome.storage.session[method](method === "get" ? "securityProbe" : { securityProbeWrite: true });
+            result[method] = "allowed";
+          } catch { result[method] = "denied"; }
         }
+        result.local = Object.keys(await chrome.storage.local.get(null));
+        const database = await new Promise((resolve, reject) => {
+          const opened = indexedDB.open("madagamask");
+          opened.onsuccess = () => resolve(opened.result);
+          opened.onerror = () => reject(opened.error);
+        });
+        result.database = [...database.objectStoreNames];
+        database.close();
         return result;
       })()`,
     });
     expect(result.exceptionDetails).toBeUndefined();
     expect(result.result.value).toEqual({
-      localget: "denied",
-      localset: "denied",
-      sessionget: "denied",
-      sessionset: "denied",
+      get: "denied",
+      set: "denied",
+      local: [],
+      database: [],
     });
     await cdp.detach();
   } finally {
@@ -1033,9 +1084,12 @@ test("create, back up, lock, and restore a wallet through the production UI", as
   await popup.getByLabel("Confirm your recovery phrase").fill(phrase ?? "");
   await popup.getByRole("button", { name: "Confirm backup" }).click();
   await expect(popup.getByLabel("Account", { exact: true })).toBeVisible();
-  const stored = JSON.stringify(
-    await popup.evaluate(() => chrome.storage.local.get(null)),
+  const database = await walletDatabase();
+  expect(database.vault).toBeDefined();
+  expect(await popup.evaluate(() => chrome.storage.local.get(null))).toEqual(
+    {},
   );
+  const stored = JSON.stringify(database);
   expect(stored).not.toContain(phrase);
   expect(stored).not.toContain("a-disposable-test-password");
   await popup.getByRole("button", { name: "Lock wallet" }).click();
@@ -1120,14 +1174,16 @@ test("website provider discovers, connects, signs, and hides accounts after lock
     }
     expect(checkedContentWorld).toBe(true);
     await cdp.detach();
-    expect(
-      await popup.evaluate(async () => {
-        const session = (await chrome.storage.session.get("unlockSession"))
-          .unlockSession as { key: string } | undefined;
-        const disk = JSON.stringify(await chrome.storage.local.get(null));
-        return !!session?.key && !disk.includes(session.key);
-      }),
-    ).toBe(true);
+    const sessionKey = await popup.evaluate(
+      async () =>
+        (
+          (await chrome.storage.session.get("unlockSession")).unlockSession as
+            | { key: string }
+            | undefined
+        )?.key,
+    );
+    expect(sessionKey).toBeTruthy();
+    expect(JSON.stringify(await walletDatabase())).not.toContain(sessionKey);
     expect(
       await site.evaluate(() =>
         (window as unknown as { ethereum: Provider }).ethereum.request({

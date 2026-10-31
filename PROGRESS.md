@@ -365,3 +365,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Successful approval or rejection closes the dedicated window when the queue is empty. If another request is pending, the window remains open and displays it next. Failed operations retain their error feedback. The background clears the old window identity before removing it so a following request cannot reuse a closing window or be invalidated by its removal.
 - The windowed Chrome provider regression passes direct connection/signing reviews, automatic closing after connection/signing/rejection, a second-origin queued request, and preservation of the normal wallet tab. An isolated Firefox 159.0 check independently verifies direct connection/message reviews and automatic closing after Connect, Sign, and Reject using disposable keys.
 - Lint/typecheck and both package checks pass; Chrome and Firefox distributions and archives rebuilt.
+
+### Isolated wallet storage
+
+- Moved the vault and public wallet state from `storage.local` to extension-origin IndexedDB on Chrome and Firefox, closing SR-1. Added `unlimitedStorage`, and Firefox requests persistent storage. Earlier local installs start empty; no release shipped, so there is no migration.
+- The Firefox lifecycle harness now runs a hostile content script against an unlocked wallet and restarts the browser with kept storage. Validated locally on Firefox 159.0.
