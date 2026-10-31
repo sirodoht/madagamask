@@ -18,3 +18,25 @@ jobs:
       - run: mise exec -- npm run test:chain
       - run: mise exec -- npm run test:browser
       - run: npm run package
+  firefox:
+    runs-on: ubuntu-latest
+    env:
+      FIREFOX_VERSION: "159.0"
+      FIREFOX_SHA256: 54536fcd120af484d4c56272a5a1cf4af57b9c713d1a3b1e775da192dd541fcd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26.13.0"
+          cache: npm
+      - uses: jdx/mise-action@v2
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install-deps firefox
+      - name: Install pinned Firefox
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/firefox.tar.xz" "https://ftp.mozilla.org/pub/firefox/releases/$FIREFOX_VERSION/linux-x86_64/en-US/firefox-$FIREFOX_VERSION.tar.xz"
+          echo "$FIREFOX_SHA256  $RUNNER_TEMP/firefox.tar.xz" | sha256sum -c
+          tar -xJf "$RUNNER_TEMP/firefox.tar.xz" -C "$RUNNER_TEMP"
+          echo "MADAGAMASK_FIREFOX_PATH=$RUNNER_TEMP/firefox/firefox" >> "$GITHUB_ENV"
+      - run: npm run test:lifecycle:firefox

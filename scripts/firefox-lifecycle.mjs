@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { appendFile, cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -278,6 +285,7 @@ try {
   console.log("Firefox lifecycle validation passed.");
   await send("session.end");
 } finally {
+  await mkdir("artifacts", { recursive: true });
   await writeFile(
     "artifacts/firefox-lifecycle.json",
     JSON.stringify(evidence, null, 2),
