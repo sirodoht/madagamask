@@ -200,3 +200,8 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Moved wallet Rename and Add account into each wallet’s compact three-dot menu. Each account has its own three-dot Rename action. Removed Backup and the action footer from wallet cards; backup remains in Settings. Private-key wallet menus omit Add account.
 - Menus support keyboard navigation, focus restoration on Escape, outside-click dismissal, and positioning within the viewport. The underlying Wallets screen remains stable.
 - Lint/typecheck, both package checks, and three targeted Chrome browser flows pass, covering rename targeting, account creation, menu sizing/navigation/dismissal, and removed visible actions. Inspected compact three-wallet Chrome layout and Firefox 159 action menu. Both browser distributions and archives rebuilt.
+
+### Wallet source icons and explanations — 2026-10-31
+
+- Replaced wallet source text labels with small local SVG icons: document for mnemonic, sprout for seed, and key for private key. Hovering or focusing an icon explains the material held and which accounts it restores. Accessible source names and descriptions remain available to screen readers.
+- Lint/typecheck, both package checks, and the Chrome multi-source wallet flow pass, including all three icons, hover/focus explanations, and tooltip bounds. Inspected Chrome icons and Firefox 159 tooltip. Both browser distributions and archives rebuilt.

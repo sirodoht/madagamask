@@ -147,6 +147,50 @@ const walletLabels: Record<WalletKind, string> = {
   seed: "Seed",
   privateKey: "Private key",
 };
+function walletKindIcon(kind: WalletKind) {
+  const descriptions: Record<WalletKind, string> = {
+    mnemonic:
+      "Mnemonic: recovery words that restore this wallet and its derived accounts.",
+    seed: "Seed: root seed data that restores this wallet and its derived accounts.",
+    privateKey:
+      "Private key: a single key that restores this wallet’s one account.",
+  };
+  const paths: Record<WalletKind, string[]> = {
+    mnemonic: ["M6 3h9l3 3v15H6Z", "M9 8h6M9 12h6M9 16h4"],
+    seed: [
+      "M12 21v-8",
+      "M12 13C5 13 3 9 3 5c6 0 9 3 9 8Z",
+      "M12 16c0-7 3-10 9-10 0 6-3 10-9 10Z",
+    ],
+    privateKey: [
+      "M11 11l10 10M17 17l3-3M14 14l3-3",
+      "M12 7a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z",
+    ],
+  };
+  const icon = el("span", undefined, "wallet-kind");
+  icon.tabIndex = 0;
+  icon.setAttribute("role", "img");
+  icon.setAttribute("aria-label", walletLabels[kind]);
+  const tooltip = el("span", descriptions[kind], "wallet-kind-tooltip");
+  tooltip.id = `wallet-kind-${crypto.randomUUID()}`;
+  tooltip.setAttribute("role", "tooltip");
+  icon.setAttribute("aria-describedby", tooltip.id);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.7");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  for (const data of paths[kind]) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", data);
+    svg.append(path);
+  }
+  icon.append(svg, tooltip);
+  return icon;
+}
 function selectedWallet() {
   const id = state.vault.accounts[state.vault.selected]?.walletId;
   const wallet = state.vault.wallets.find((wallet) => wallet.id === id);
@@ -252,10 +296,7 @@ function wallets() {
     group.setAttribute("aria-label", wallet.name);
     const heading = el("div", undefined, "wallet-row");
     const title = el("div", undefined, "wallet-title");
-    title.append(
-      el("h2", wallet.name),
-      el("span", walletLabels[wallet.kind], "wallet-kind"),
-    );
+    title.append(el("h2", wallet.name), walletKindIcon(wallet.kind));
     const walletActions: [string, () => void][] = [
       ["Rename wallet", () => renameWallet(wallet, wallets)],
     ];

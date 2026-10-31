@@ -363,14 +363,47 @@ main h1 {
   font-size: 0.875rem;
 }
 .wallet-title {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 8px;
 }
 .wallet-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
   color: var(--color-muted);
+  border-radius: 4px;
+  cursor: help;
+}
+.wallet-kind svg {
+  width: 18px;
+  height: 18px;
+}
+.wallet-kind-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 1;
+  width: 240px;
+  max-width: calc(100vw - 48px);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-text);
+  color: var(--color-surface);
   font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  visibility: hidden;
+  pointer-events: none;
+}
+.wallet-kind:hover .wallet-kind-tooltip,
+.wallet-kind:focus .wallet-kind-tooltip {
+  visibility: visible;
 }
 .settings-account {
   font-size: 0.75rem;

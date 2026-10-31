@@ -1059,7 +1059,28 @@ test("wallet screen groups sources and returns from wallet actions", async () =>
     ["gox", "Private key", 1],
   ] as const) {
     const group = popup.getByRole("region", { name, exact: true });
-    await expect(group.locator(".wallet-kind")).toHaveText(kind);
+    const source = group.getByRole("img", { name: kind, exact: true });
+    await expect(source).toBeVisible();
+    await expect(source.locator("svg")).toHaveCount(1);
+    const explanation = source.getByRole("tooltip", { includeHidden: true });
+    await expect(explanation).toBeHidden();
+    await source.hover();
+    await expect(explanation).toBeVisible();
+    await expect(explanation).toContainText(
+      kind === "Mnemonic"
+        ? "recovery words"
+        : kind === "Seed"
+          ? "root seed data"
+          : "single key",
+    );
+    await popup.mouse.move(0, 0);
+    await source.focus();
+    await expect(explanation).toBeVisible();
+    const tipBounds = await explanation.boundingBox();
+    expect(tipBounds?.x).toBeGreaterThanOrEqual(0);
+    expect((tipBounds?.x ?? 0) + (tipBounds?.width ?? 0)).toBeLessThanOrEqual(
+      380,
+    );
     await expect(group.locator(".account-row > .account-option")).toHaveCount(
       count,
     );
