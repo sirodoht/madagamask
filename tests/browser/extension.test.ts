@@ -142,7 +142,7 @@ test("malformed messages and role escalation fail closed", async () => {
   ]);
 });
 
-test("heartbeat stores only a timestamp and does not persist wallet state", async () => {
+test("locked wallet session storage contains only the heartbeat timestamp", async () => {
   await expect
     .poll(async () =>
       Object.keys(await popup.evaluate(() => chrome.storage.session.get(null))),

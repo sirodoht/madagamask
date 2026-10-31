@@ -120,3 +120,10 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 
 - Clicking the address now shows “Address copied ✓” in the same place for two seconds, then restores the full address. Copy failures also report inline. No bottom status or loading message is added; the address row retains its dimensions during feedback.
 - Lint, typecheck, both package checks, and the Chrome wallet transfer flow pass. Clipboard coverage verifies the copied value, inline success, empty bottom status, unchanged layout bounds, and address restoration. Both distributions and archives rebuilt.
+
+### Unlock session persistence — implementation checkpoint, 2026-10-31
+
+- Added trusted-context-only browser session storage for a temporary vault-unlock key, vault salt, last activity, and expiry. Passwords, mnemonic phrases, and account payloads are not stored in session storage; the disk vault remains encrypted. Restoration validates the key against the vault and verifies expiry before granting access.
+- Serialized session updates/deletion and retained immediate epoch invalidation on Lock. Added alarm-driven expiry while backgrounds are unloaded, plus explicit browser-start/extension-install-update clearing. Default timeout is now 30 minutes; legacy five-minute settings migrate to 30, other existing values remain, and new explicit five-minute settings persist.
+- Unlock input receives focus and no longer shows password-creation help. 31 unit tests and eight Chrome browser flows pass (two optional external checks skipped). Unit coverage includes actual restored signing, deadlines, stale password keys, reset, malformed session data, lock/restoration/write races, and storage failure. An existing queued-unlock regression was caught and fixed before this checkpoint.
+- Chrome and Firefox real lifecycle validation is in progress. Push is pending a repository URL: this checkout has no configured remote; requested it from the user.

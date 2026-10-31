@@ -87,7 +87,7 @@ test("auto-lock and explicit lock invalidate in-flight unlock", async () => {
   let now = 0;
   const vault = new Vault(storage, () => now);
   await vault.create(password, mnemonic);
-  now = 300_000;
+  now = 30 * 60_000;
   vault.expire();
   assert.equal((await vault.view()).state, "locked");
   const unlocking = vault.unlock(password);

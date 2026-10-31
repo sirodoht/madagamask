@@ -22,6 +22,7 @@
     "test:browser": "playwright test",
     "package": "npm run build && npm run check:packages && node scripts/package.ts",
     "test:lifecycle": "node scripts/lifecycle.ts",
+    "test:lifecycle:firefox": "node scripts/firefox-lifecycle.mjs",
     "test:chain": "node --test tests/chain/*.test.ts",
     "dev:dapp": "node scripts/test-dapp.ts"
   },

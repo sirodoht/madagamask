@@ -13,9 +13,15 @@ export class Wallet {
   readonly dapps: Dapps;
   readonly networks: Networks;
   readonly transactions: Transactions;
+  readonly ready: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
-  constructor(storage: Storage, bundledPhishing?: () => Promise<Snapshot>) {
-    this.vault = new Vault(storage);
+  constructor(
+    storage: Storage,
+    bundledPhishing?: () => Promise<Snapshot>,
+    sessionStorage?: Storage,
+  ) {
+    this.vault = new Vault(storage, Date.now, sessionStorage);
+    this.ready = this.vault.restoreSession();
     this.networks = new Networks(storage);
     this.transactions = new Transactions(storage, this.vault, this.networks);
     this.dapps = new Dapps(this, storage);
@@ -31,6 +37,29 @@ export class Wallet {
     };
   }
   run(action: string, params: Record<string, unknown>): Promise<unknown> {
+    // Lock invalidates in-flight restoration and crypto immediately.
+    const epoch = this.vault.generation();
+    const result =
+      action === "lock"
+        ? this.runReady(action, params)
+        : this.ready.then(() => {
+            if (
+              !["state", "activity", "refreshActivity", "connections"].includes(
+                action,
+              ) &&
+              this.vault.generation() !== epoch
+            )
+              throw new UserError(
+                "Wallet locked while the operation was queued.",
+              );
+            return this.runReady(action, params);
+          });
+    return result.finally(() => this.vault.flushSession());
+  }
+  private runReady(
+    action: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
     if (
       [
         "lock",

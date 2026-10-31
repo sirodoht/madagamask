@@ -9,6 +9,8 @@ import {
 import { integer, record, text, UserError } from "./validation.ts";
 
 export const VAULT_KEY = "vault";
+export const SESSION_KEY = "unlockSession";
+export const DEFAULT_AUTO_LOCK_MINUTES = 30;
 export const KDF_ITERATIONS = 600_000;
 const aad = new TextEncoder().encode("madagamask:vault:1");
 type Envelope = {
@@ -26,6 +28,7 @@ type Payload = {
   selected: number;
   backedUp: boolean;
   autoLockMinutes: number;
+  autoLockPolicy: 1;
 };
 export type PublicAccount = {
   address: Address;
@@ -125,10 +128,18 @@ function parsePayload(value: unknown): Payload {
     accounts,
     selected: integer(data.selected, 0, accounts.length - 1),
     backedUp: data.backedUp,
-    autoLockMinutes: integer(data.autoLockMinutes, 1, 30),
+    autoLockMinutes:
+      data.autoLockPolicy === undefined && data.autoLockMinutes === 5
+        ? DEFAULT_AUTO_LOCK_MINUTES
+        : integer(data.autoLockMinutes, 1, 30),
+    autoLockPolicy: 1,
   };
 }
-async function derive(secret: string, salt: Uint8Array<ArrayBuffer>) {
+async function derive(
+  secret: string,
+  salt: Uint8Array<ArrayBuffer>,
+  extractable = false,
+) {
   const bytes = new TextEncoder().encode(secret);
   try {
     const material = await crypto.subtle.importKey(
@@ -142,7 +153,7 @@ async function derive(secret: string, salt: Uint8Array<ArrayBuffer>) {
       { name: "PBKDF2", salt, iterations: KDF_ITERATIONS, hash: "SHA-256" },
       material,
       { name: "AES-GCM", length: 256 },
-      false,
+      extractable,
       ["encrypt", "decrypt"],
     );
   } finally {
@@ -182,26 +193,142 @@ export class Vault {
   private lastActivity = 0;
   private readonly storage: Storage;
   private readonly now: () => number;
-  constructor(storage: Storage, now = Date.now) {
+  private readonly sessionStorage: Storage | undefined;
+  private sessionWrites: Promise<void> = Promise.resolve();
+  constructor(storage: Storage, now = Date.now, sessionStorage?: Storage) {
     this.storage = storage;
     this.now = now;
+    this.sessionStorage = sessionStorage;
   }
 
   lock() {
     this.session = undefined;
     this.epoch += 1;
+    this.persistSession();
+  }
+  // Serialize session writes with deletion. A completed Lock cannot be undone by
+  // an earlier export/write finishing late. Session failures fail closed.
+  private persistSession() {
+    const store = this.sessionStorage;
+    if (!store) return;
+    const write = this.sessionWrites
+      .catch(() => {})
+      .then(async () => {
+        try {
+          const session = this.session;
+          const epoch = this.epoch;
+          if (!session) return await store.remove(SESSION_KEY);
+          const lastActivity = this.lastActivity;
+          const expiresAt =
+            lastActivity + session.data.autoLockMinutes * 60_000;
+          const bytes = new Uint8Array(
+            await crypto.subtle.exportKey("raw", session.key),
+          );
+          try {
+            if (
+              epoch !== this.epoch ||
+              this.now() >= expiresAt ||
+              this.now() < lastActivity
+            ) {
+              if (epoch === this.epoch) {
+                this.session = undefined;
+                this.epoch += 1;
+              }
+              await store.remove(SESSION_KEY);
+              return;
+            }
+            await store.set(SESSION_KEY, {
+              version: 1,
+              key: encode(bytes),
+              salt: session.salt,
+              lastActivity,
+              expiresAt,
+            });
+          } finally {
+            bytes.fill(0);
+          }
+        } catch {
+          this.session = undefined;
+          this.epoch += 1;
+          // Try both operations: some storage failures affect only one method.
+          try {
+            await store.remove(SESSION_KEY);
+          } catch {
+            await store.set(SESSION_KEY, null);
+          }
+          throw new UserError(
+            "Could not save the unlock session. Unlock the wallet again.",
+          );
+        }
+      });
+    this.sessionWrites = write;
+    void write.catch(() => {});
+  }
+  async flushSession() {
+    await this.sessionWrites;
+  }
+  async restoreSession() {
+    const store = this.sessionStorage;
+    if (!store) return;
+    const epoch = this.epoch;
+    try {
+      const value = await store.get(SESSION_KEY);
+      if (value === undefined || value === null) return;
+      const saved = record(value);
+      const lastActivity = integer(
+        saved.lastActivity,
+        0,
+        Number.MAX_SAFE_INTEGER,
+      );
+      const expiresAt = integer(saved.expiresAt, 0, Number.MAX_SAFE_INTEGER);
+      if (
+        saved.version !== 1 ||
+        this.now() < lastActivity ||
+        this.now() >= expiresAt
+      )
+        throw new Error("Expired session");
+      const encrypted = envelope(await this.storage.get(VAULT_KEY));
+      if (saved.salt !== encrypted.salt) throw new Error("Different vault");
+      const bytes = decode(saved.key, 32, 32);
+      let key: CryptoKey;
+      try {
+        key = await crypto.subtle.importKey("raw", bytes, "AES-GCM", true, [
+          "encrypt",
+          "decrypt",
+        ]);
+      } finally {
+        bytes.fill(0);
+      }
+      const session = await this.decryptWithKey(encrypted, key);
+      if (
+        expiresAt !== lastActivity + session.data.autoLockMinutes * 60_000 ||
+        this.now() >= expiresAt ||
+        this.now() < lastActivity
+      )
+        throw new Error("Invalid session deadline");
+      this.assertEpoch(epoch);
+      this.session = session;
+      this.lastActivity = lastActivity;
+    } catch {
+      if (epoch === this.epoch) this.lock();
+      await this.flushSession();
+    }
   }
   expire() {
     if (
       this.session &&
-      this.now() - this.lastActivity >=
-        this.session.data.autoLockMinutes * 60_000
+      (this.now() < this.lastActivity ||
+        this.now() - this.lastActivity >=
+          this.session.data.autoLockMinutes * 60_000)
     )
       this.lock();
   }
   touch() {
     this.expire();
-    if (this.session) this.lastActivity = this.now();
+    if (this.session) {
+      this.lastActivity = this.now();
+      this.persistSession();
+    }
   }
   private current() {
     this.expire();
@@ -233,7 +360,7 @@ export class Vault {
         : [],
       selected: data?.selected ?? 0,
       backedUp: data?.backedUp ?? false,
-      autoLockMinutes: data?.autoLockMinutes ?? 5,
+      autoLockMinutes: data?.autoLockMinutes ?? DEFAULT_AUTO_LOCK_MINUTES,
     };
   }
   async create(secret: unknown, recovery?: unknown) {
@@ -247,14 +374,15 @@ export class Vault {
         ? generateMnemonic(english, 128)
         : phrase(recovery);
     const salt = crypto.getRandomValues(new Uint8Array(32));
-    const key = await derive(password(secret), salt);
+    const key = await derive(password(secret), salt, !!this.sessionStorage);
     const data: Payload = {
       version: 1,
       mnemonic,
       accounts: [{ name: "Account 1", index: 0 }],
       selected: 0,
       backedUp: recovery !== undefined,
-      autoLockMinutes: 5,
+      autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES,
+      autoLockPolicy: 1,
     };
     const encrypted = await encrypt(data, key, encode(salt));
     this.assertEpoch(epoch);
@@ -262,10 +390,19 @@ export class Vault {
     this.assertEpoch(epoch);
     this.session = { data, key, salt: encrypted.salt };
     this.lastActivity = this.now();
+    this.persistSession();
+    await this.flushSession();
   }
   private async decrypt(secret: unknown) {
     const encrypted = envelope(await this.storage.get(VAULT_KEY));
-    const key = await derive(password(secret), decode(encrypted.salt, 32, 32));
+    const key = await derive(
+      password(secret),
+      decode(encrypted.salt, 32, 32),
+      !!this.sessionStorage,
+    );
+    return this.decryptWithKey(encrypted, key);
+  }
+  private async decryptWithKey(encrypted: Envelope, key: CryptoKey) {
     let bytes: Uint8Array<ArrayBuffer>;
     try {
       bytes = new Uint8Array(
@@ -298,6 +435,8 @@ export class Vault {
     this.assertEpoch(epoch);
     this.session = session;
     this.lastActivity = this.now();
+    this.persistSession();
+    await this.flushSession();
   }
   async reveal(secret: unknown, importedIndex?: unknown) {
     const epoch = this.epoch;
@@ -327,6 +466,8 @@ export class Vault {
     this.assertEpoch(epoch);
     this.current();
     this.session = { ...session, data };
+    this.persistSession();
+    await this.flushSession();
   }
   async confirmBackup(value: unknown) {
     const { data } = this.current();
@@ -392,13 +533,15 @@ export class Vault {
     this.current();
     const { data } = await this.decrypt(oldSecret);
     const salt = crypto.getRandomValues(new Uint8Array(32));
-    const key = await derive(password(newSecret), salt);
+    const key = await derive(password(newSecret), salt, !!this.sessionStorage);
     const encrypted = await encrypt(data, key, encode(salt));
     this.assertEpoch(epoch);
     this.current();
     await this.storage.set(VAULT_KEY, encrypted);
     this.assertEpoch(epoch);
     this.session = { data, key, salt: encrypted.salt };
+    this.persistSession();
+    await this.flushSession();
   }
   async reset(
     secret: unknown,

@@ -720,9 +720,15 @@ function home() {
   } else if (vault.state === "locked") {
     screen("Welcome back");
     app.append(
-      form([passwordField], "Unlock", (values) =>
-        attempt(() => command("unlock", values)),
+      form(
+        [{ key: "password", label: "Password", type: "password" }],
+        "Unlock",
+        (values) => attempt(() => command("unlock", values)),
       ),
+    );
+    // Initial rendering can happen while the app is inert during state loading.
+    requestAnimationFrame(() =>
+      app.querySelector<HTMLInputElement>('input[name="password"]')?.focus(),
     );
   } else {
     screen();

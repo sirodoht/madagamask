@@ -1,5 +1,6 @@
 import { ProviderError, type Site } from "../core/dapps.ts";
 import { UserError } from "../core/validation.ts";
+import { SESSION_KEY } from "../core/vault.ts";
 import { Wallet } from "../core/wallet.ts";
 import { parseRequest } from "../shared/messages.ts";
 import { authorize } from "./authorize.ts";
@@ -9,6 +10,10 @@ import { HEARTBEAT_KEY, startHeartbeat } from "./heartbeat.ts";
 declare const BROWSER_TARGET: "chrome" | "firefox";
 const popupUrl = chrome.runtime.getURL("popup.html");
 const handle = createHandler(chrome.runtime.id, popupUrl);
+// Firefox also defaults session storage to trusted extension contexts only.
+const sessionAccess = chrome.storage.session.setAccessLevel
+  ? chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
+  : Promise.resolve();
 const wallet = new Wallet(
   {
     get: async (key) => (await chrome.storage.local.get(key))[key],
@@ -30,7 +35,64 @@ const wallet = new Wallet(
     ).json()) as string[];
     return { updatedAt: meta.fetchedAt, domains };
   },
+  {
+    get: async (key) => {
+      await sessionAccess;
+      return (await chrome.storage.session.get(key))[key];
+    },
+    set: async (key, value) => {
+      await sessionAccess;
+      await chrome.storage.session.set({ [key]: value });
+    },
+    remove: async (key) => {
+      await chrome.storage.session.remove(key);
+    },
+  },
 );
+let ready = wallet.ready;
+function endSession() {
+  wallet.vault.lock();
+  wallet.dapps.invalidate("Wallet locked.");
+  wallet.transactions.invalidate();
+  ready = ready.then(() => wallet.vault.flushSession());
+  void ready.catch(() => {});
+}
+chrome.runtime.onInstalled.addListener(endSession);
+chrome.runtime.onStartup.addListener(endSession);
+const expiryAlarm = "unlock-session-expiry";
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "session" || !changes[SESSION_KEY]) return;
+  const saved = changes[SESSION_KEY].newValue as
+    | { expiresAt?: number }
+    | undefined;
+  if (typeof saved?.expiresAt === "number") {
+    void chrome.alarms
+      .create(expiryAlarm, { when: saved.expiresAt })
+      .catch(() => {});
+  } else {
+    void chrome.alarms.clear(expiryAlarm).catch(() => {});
+  }
+});
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== expiryAlarm) return;
+  void ready
+    .then(async () => {
+      // Delayed alarms must not lock a newer, active session.
+      wallet.vault.expire();
+      await wallet.vault.flushSession();
+      await notifySites();
+    })
+    .catch(() => {});
+});
+void ready
+  .then(async () => {
+    const saved = (await chrome.storage.session.get(SESSION_KEY))[
+      SESSION_KEY
+    ] as { expiresAt?: number } | undefined;
+    if (typeof saved?.expiresAt === "number")
+      await chrome.alarms.create(expiryAlarm, { when: saved.expiresAt });
+  })
+  .catch(() => {});
 const sites = new Map<number, Site>();
 const lastEvents = new Map<number, string>();
 let approvalWindowId: number | undefined;
@@ -111,28 +173,31 @@ chrome.runtime.onMessage.addListener(
       };
       sites.set(site.tabId, site);
       if (request.type === "site:request") {
-        void wallet.dapps.request(request.request, site).then(
-          (value) => {
-            sendResponse({ ok: true, value });
-            void notifySites().catch(() => {});
-          },
-          (error: unknown) =>
-            sendResponse({
-              ok: false,
-              error: {
-                code: error instanceof ProviderError ? error.code : -32603,
-                message:
-                  error instanceof ProviderError || error instanceof UserError
-                    ? error.message
-                    : "Invalid or failed wallet request.",
-              },
-            }),
-        );
+        void ready
+          .then(() => wallet.dapps.request(request.request, site))
+          .then(
+            (value) => {
+              sendResponse({ ok: true, value });
+              void notifySites().catch(() => {});
+            },
+            (error: unknown) =>
+              sendResponse({
+                ok: false,
+                error: {
+                  code: error instanceof ProviderError ? error.code : -32603,
+                  message:
+                    error instanceof ProviderError || error instanceof UserError
+                      ? error.message
+                      : "Invalid or failed wallet request.",
+                },
+              }),
+          );
         return true;
       }
     }
     if (request.type === "app:command") {
-      void wallet.run(request.action, request.params).then(
+      const operation = wallet.run(request.action, request.params);
+      void operation.then(
         (value) => {
           sendResponse({ ok: true, value });
           void notifySites().catch(() => {});

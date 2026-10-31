@@ -217,15 +217,12 @@ try {
   await cdp.send("ServiceWorker.enable", {}, page.sessionId);
   await cdp.send("ServiceWorker.stopAllWorkers", {}, page.sessionId);
   await delay(500);
-  assert.equal((await command(page.sessionId, "state")).vault.state, "locked");
+  assert.equal((await command(page.sessionId, "state")).vault.state, "unlocked");
   assert.notEqual(
     (await instance(page.sessionId)).instanceId,
     first.instanceId,
   );
-  evidence.forcedTermination = "locked; fresh worker identity";
-  await command(page.sessionId, "unlock", {
-    password: "disposable-lifecycle-password",
-  });
+  evidence.forcedTermination = "session restored; fresh worker identity";
   await command(page.sessionId, "autoLock", { minutes: 1 });
   const beforeAuto = await instance(page.sessionId);
   await cdp.send("Target.closeTarget", { targetId: page.targetId });

@@ -13,7 +13,7 @@ for (const browser of ["chrome", "firefox"]) {
     );
     assert.equal(manifest.manifest_version, 3);
     assert.equal(manifest.version, pkg.version);
-    assert.deepEqual(manifest.permissions, ["storage"]);
+    assert.deepEqual(manifest.permissions, ["storage", "alarms"]);
     assert.deepEqual(manifest.host_permissions, [
       "https://*/*",
       "http://localhost/*",
