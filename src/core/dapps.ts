@@ -6,6 +6,7 @@ import {
 } from "viem";
 import { rpc, SIGNING_CHAINS } from "./networks.ts";
 import type { Protection } from "./phishing.ts";
+import { reducePermission, validateSigningFields } from "./signing.ts";
 import { editAllowance } from "./tokens.ts";
 import { address, hexData, type Preview } from "./transactions.ts";
 import { record, text, UserError } from "./validation.ts";
@@ -90,6 +91,7 @@ function typedData(value: unknown, selectedChain: number): TypedDataDefinition {
       text(item.type, "field type", 100);
     }
   }
+  validateSigningFields(data);
   const result = data as unknown as TypedDataDefinition;
   hashTypedData(result);
   return result;
@@ -351,7 +353,16 @@ export class Dapps {
   async editAllowance(idValue: unknown, amount: unknown) {
     const id = text(idValue, "approval ID", 100);
     const pending = this.pending.get(id);
-    if (!pending?.view.preview)
+    if (!pending || pending.view.expiresAt <= Date.now())
+      throw new UserError("Transaction review not found.");
+    if (pending.view.method === "eth_signTypedData_v4") {
+      const next = reducePermission(pending.view.params[1], amount);
+      typedData(next, pending.view.chainId);
+      pending.view.params = [pending.view.account, next];
+      this.renewReview(id, pending);
+      return;
+    }
+    if (!pending.view.preview)
       throw new UserError("Transaction review not found.");
     const old = pending.view.preview;
     const data = editAllowance(old.data, amount);
@@ -368,6 +379,17 @@ export class Dapps {
     pending.view.preview = preview;
     const tx = record(pending.view.params[0]);
     pending.view.params = [{ ...tx, data }];
+    this.renewReview(id, pending);
+  }
+  private renewReview(id: string, pending: Pending) {
+    this.pending.delete(id);
+    clearTimeout(pending.timer);
+    pending.view.id = crypto.randomUUID();
+    pending.timer = setTimeout(
+      () => this.reject(pending.view.id, "Request expired."),
+      Math.max(0, pending.view.expiresAt - Date.now()),
+    );
+    this.pending.set(pending.view.id, pending);
   }
   async approve(idValue: unknown) {
     const id = text(idValue, "approval ID", 100);

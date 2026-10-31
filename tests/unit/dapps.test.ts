@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { recoverMessageAddress, recoverTypedDataAddress } from "viem";
+import {
+  recoverMessageAddress,
+  recoverTypedDataAddress,
+  type TypedDataDefinition,
+} from "viem";
 import type { Site } from "../../src/core/dapps.ts";
 import { Wallet } from "../../src/core/wallet.ts";
 
@@ -227,7 +231,13 @@ test("typed-data approval signs the reviewed domain and message", async () => {
   });
   await wallet.run("approveDapp", { id: signing.approval.id });
   const signature = (await signing.result()) as `0x${string}`;
-  assert.equal(await recoverTypedDataAddress({ ...data, signature }), account);
+  assert.equal(
+    await recoverTypedDataAddress({
+      ...(data as unknown as TypedDataDefinition),
+      signature,
+    }),
+    account,
+  );
 });
 
 test("dismissal during approval processing prevents signature delivery", async () => {
@@ -299,4 +309,68 @@ test("adding a wallet or child account invalidates pending approval and changes 
     assert.deepEqual(await wallet.dapps.accounts(site.origin), []);
     assert.equal(wallet.dapps.approvals().length, 0);
   }
+});
+
+test("permission reductions invalidate the old review and sign only the revised payload", async () => {
+  const { permit, permit2 } = await import("../fixtures/permits.ts");
+  const wallet = await setup();
+  const connect = await pending(wallet, { method: "eth_requestAccounts" });
+  await wallet.run("approveDapp", { id: connect.approval.id });
+  await connect.result();
+  const [account] = await wallet.dapps.accounts(site.origin);
+  for (const data of [permit, permit2]) {
+    const signing = await pending(wallet, {
+      method: "eth_signTypedData_v4",
+      params: [account, JSON.stringify(data)],
+    });
+    const originalId = signing.approval.id;
+    await wallet.run("editDappAllowance", { id: originalId, amount: "7" });
+    const revised = wallet.dapps.approvals()[0];
+    assert.ok(revised);
+    assert.notEqual(revised.id, originalId);
+    assert.equal(revised.expiresAt, signing.approval.expiresAt);
+    await assert.rejects(
+      wallet.run("approveDapp", { id: originalId }),
+      /expired or was dismissed/,
+    );
+    await assert.rejects(
+      wallet.run("editDappAllowance", { id: revised.id, amount: "8" }),
+      /no greater/,
+    );
+    assert.equal(wallet.dapps.approvals()[0]?.id, revised.id);
+    await wallet.run("approveDapp", { id: revised.id });
+    const signature = (await signing.result()) as `0x${string}`;
+    const expected = structuredClone(data);
+    if (expected.primaryType === "Permit")
+      Object.assign(expected.message, { value: "7" });
+    else Object.assign(expected.message.details, { amount: "7" });
+    assert.equal(
+      await recoverTypedDataAddress({
+        ...(expected as unknown as TypedDataDefinition),
+        signature,
+      }),
+      account,
+    );
+    assert.notEqual(
+      await recoverTypedDataAddress({
+        ...(data as unknown as TypedDataDefinition),
+        signature,
+      }),
+      account,
+    );
+  }
+  await assert.rejects(
+    wallet.dapps.request(
+      {
+        method: "eth_signTypedData_v4",
+        params: [
+          account,
+          { ...permit, types: { ...permit.types, EIP712Domain: [] } },
+        ],
+      },
+      site,
+    ),
+    /domain fields/,
+  );
+  assert.equal(wallet.dapps.approvals().length, 0);
 });

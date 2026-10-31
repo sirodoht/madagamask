@@ -34,6 +34,10 @@ test("token quantities preserve exact decimals and unlimited approvals are expli
   });
   assert.equal(edited.functionName, "approve");
   assert.equal(edited.args?.[1], 0n);
+  assert.throws(
+    () => editAllowance(editAllowance(data, "7"), "8"),
+    /cannot exceed/,
+  );
   assert.equal(interpret("0xdeadbeef", spender).kind, "unknown");
 });
 test("phishing matching respects label boundaries and stale data remains effective", async () => {

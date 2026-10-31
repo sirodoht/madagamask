@@ -233,6 +233,10 @@ export function editAllowance(data: Hex, value: unknown) {
   const input = text(value, "allowance", 78);
   if (!/^\d+$/.test(input) || BigInt(input) > maxUint256)
     throw new UserError("Invalid allowance in base units.");
+  if (BigInt(input) > decoded.args[1])
+    throw new UserError(
+      "The allowance cannot exceed the amount being reviewed.",
+    );
   return encodeFunctionData({
     abi: erc20Abi,
     functionName: "approve",
