@@ -447,6 +447,82 @@ test("balance retries recover and a lost send reply leads to Activity without a 
   }
 });
 
+test("balance always shows every digit at one size", async () => {
+  const close = await localReliabilityWallet();
+  try {
+    const shots = process.env.MADAGAMASK_BALANCE_SHOTS;
+    await popup.setViewportSize({ width: 396, height: 600 });
+    await popup.evaluate(() => {
+      const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+      Object.defineProperty(chrome.runtime, "sendMessage", {
+        value: (
+          request: { action?: string },
+          callback: (value: unknown) => void,
+        ) => {
+          if (request.action !== "balance") return original(request, callback);
+          original(
+            request,
+            (response: { ok: boolean; value: { amount: string } }) => {
+              const amount = document.documentElement.dataset.mockBalance;
+              if (response.ok && amount) response.value.amount = amount;
+              callback(response);
+            },
+          );
+        },
+      });
+    });
+    const refresh = popup.getByRole("button", {
+      name: "Refresh balance",
+      exact: true,
+    });
+    const value = popup.locator(".balance-value");
+    const size = () =>
+      value.evaluate((node) => {
+        const style = getComputedStyle(node);
+        return {
+          fontSize: style.fontSize,
+          lines: Math.round(
+            node.getBoundingClientRect().height /
+              Number.parseFloat(style.lineHeight),
+          ),
+        };
+      });
+    const show = async (amount: string, extra: string) => {
+      await popup.evaluate((amount) => {
+        document.documentElement.dataset.mockBalance = amount;
+      }, amount);
+      await refresh.click();
+      await expect(popup.locator(".balance")).toHaveText(`${amount} ETH`);
+      await expect(popup.locator(".balance-extra")).toHaveText(
+        extra ? [extra] : [],
+      );
+      if (shots)
+        await popup.screenshot({
+          path: `${shots}/balance-${amount.length}.png`,
+        });
+      return size();
+    };
+    const short = await show("0.00022227", "");
+    expect(short.lines).toBe(1);
+    const long = await show("120000000.123456789012345678", "9012345678");
+    expect(long).toEqual(short);
+    expect((await show("1.234567890123456789", "0123456789")).fontSize).toBe(
+      short.fontSize,
+    );
+    const largest = `${"1".repeat(60)}.${"2".repeat(18)}`;
+    const extreme = await show(largest, "2222222222");
+    expect(extreme.fontSize).toBe(short.fontSize);
+    expect(extreme.lines).toBeGreaterThan(1);
+    expect(
+      await popup.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  } finally {
+    await close();
+  }
+});
+
 test("production popup loads, connects, and opens the full view", async () => {
   await expect(
     popup.getByRole("heading", { name: "Ethereum wallet" }),

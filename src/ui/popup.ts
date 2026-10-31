@@ -1414,6 +1414,14 @@ function importWallet() {
     );
   back();
 }
+function balanceAmount(amount: string) {
+  const point = amount.indexOf(".");
+  const prominent = point < 0 ? amount.length : point + 9;
+  const value = el("span", amount.slice(0, prominent), "balance-value");
+  const extra = amount.slice(prominent);
+  if (extra) value.append(el("span", extra, "balance-extra"));
+  return value;
+}
 function home() {
   const vault = state.vault;
   const quickLock = document.getElementById("quick-lock");
@@ -1492,7 +1500,11 @@ function home() {
             value.address === account.address &&
             value.chainId === state.networks.selected
           ) {
-            balance.textContent = `${value.amount} ${value.symbol}`;
+            balance.replaceChildren(
+              balanceAmount(value.amount),
+              " ",
+              el("span", value.symbol, "balance-symbol"),
+            );
             balance.dataset.state = "ready";
           }
         } catch {

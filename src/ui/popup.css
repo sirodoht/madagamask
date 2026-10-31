@@ -363,22 +363,36 @@ main h1 {
   font-size: 0.875rem;
 }
 .balance-row {
-  display: grid;
-  grid-template-columns: 36px minmax(0, max-content) 36px;
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 4px;
+  align-content: center;
+  column-gap: 4px;
   width: 100%;
   min-height: 88px;
 }
 .balance {
-  grid-column: 2;
+  display: contents;
   color: var(--color-text);
-  font-size: 2.5rem;
+  font-size: 1.25rem;
   font-weight: 550;
   line-height: 1.2;
-  letter-spacing: -0.035em;
+}
+.balance-value {
+  flex-basis: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
   text-align: center;
+  overflow-wrap: anywhere;
+}
+.balance-extra,
+.balance-symbol {
+  color: var(--color-muted);
+}
+.balance-symbol {
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 .balance[data-state="loading"],
 .balance[data-state="error"] {
@@ -386,7 +400,6 @@ main h1 {
   font-size: 0.875rem;
   font-weight: 400;
   line-height: 1.5;
-  letter-spacing: normal;
 }
 .balance-spinner {
   display: inline-block;
@@ -410,7 +423,6 @@ main h1 {
   }
 }
 .balance-refresh {
-  grid-column: 3;
   width: 36px;
   min-height: 36px;
   padding: 4px;
@@ -418,7 +430,7 @@ main h1 {
   border-radius: 50%;
   background: transparent;
   color: var(--color-muted);
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   cursor: pointer;
 }
 .balance-refresh:hover {
@@ -426,7 +438,7 @@ main h1 {
   background: var(--color-accent-soft);
 }
 .balance-refresh:disabled {
-  visibility: hidden;
+  display: none;
 }
 .wallet-primary-actions .button {
   min-height: 48px;
