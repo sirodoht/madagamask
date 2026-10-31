@@ -106,7 +106,7 @@ export class Dapps {
   private permissionQueue: Promise<unknown> = Promise.resolve();
   private inflight = new Set<string>();
   isSiteActive: (site: Site) => boolean = () => true;
-  onRequest: () => Promise<void> = async () => {};
+  onRequest: (site: Site) => Promise<void> = async () => {};
   constructor(wallet: Wallet, storage: Storage) {
     this.wallet = wallet;
     this.storage = storage;
@@ -342,7 +342,7 @@ export class Dapps {
           reject,
           timer,
         });
-        void this.onRequest().catch(() =>
+        void this.onRequest(site).catch(() =>
           this.reject(view.id, "Approval window could not be opened."),
         );
       });

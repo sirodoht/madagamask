@@ -71,6 +71,7 @@ mise exec -- npm run test:chain
 mise exec -- npx playwright install chromium
 mise exec -- npm run test:browser
 MADAGAMASK_BROWSER=chrome mise exec -- npm run test:browser
+MADAGAMASK_BROWSER=chrome MADAGAMASK_HEADED=1 mise exec -- npm run test:browser -- --grep "website provider discovers" # native approval-window placement
 mise exec -- npm run test:lifecycle
 mise exec -- npm run dev:dapp
 ```

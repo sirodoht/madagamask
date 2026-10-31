@@ -78,7 +78,7 @@ let approvalWindowId: number | undefined;
 wallet.dapps.isSiteActive = (site) =>
   sites.get(site.tabId)?.documentId === site.documentId &&
   sites.get(site.tabId)?.origin === site.origin;
-wallet.dapps.onRequest = async () => {
+wallet.dapps.onRequest = async (site) => {
   if (approvalWindowId !== undefined) {
     try {
       await chrome.windows.update(approvalWindowId, { focused: true });
@@ -87,11 +87,24 @@ wallet.dapps.onRequest = async () => {
       approvalWindowId = undefined;
     }
   }
+  const tab = await chrome.tabs.get(site.tabId);
+  const parent = await chrome.windows.get(tab.windowId);
+  const width = 420;
+  const position =
+    parent.left !== undefined &&
+    parent.top !== undefined &&
+    parent.width !== undefined
+      ? {
+          left: parent.left + Math.max(0, parent.width - width),
+          top: parent.top,
+        }
+      : {};
   const window = await chrome.windows.create({
     url: popupUrl,
     type: "popup",
-    width: 420,
+    width,
     height: 720,
+    ...position,
   });
   approvalWindowId = window?.id;
 };

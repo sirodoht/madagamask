@@ -39,7 +39,8 @@ async function launchContext() {
     ...(process.env.MADAGAMASK_CHROME_PATH
       ? { executablePath: process.env.MADAGAMASK_CHROME_PATH }
       : {}),
-    headless: true,
+    headless: process.env.MADAGAMASK_HEADED !== "1",
+    ...(process.env.MADAGAMASK_HEADED === "1" ? { viewport: null } : {}),
     ignoreDefaultArgs: stable ? ["--disable-extensions"] : [],
     args: stable
       ? ["--enable-unsafe-extension-debugging"]
@@ -1153,6 +1154,38 @@ test("website provider discovers, connects, signs, and hides accounts after lock
         }),
       )
       .toBe(1);
+    // Native approval-window geometry requires a windowed browser session.
+    if (process.env.MADAGAMASK_HEADED === "1") {
+      await expect
+        .poll(() =>
+          popup.evaluate(async () => {
+            const parent = await chrome.windows.getCurrent();
+            const [approval] = await chrome.windows.getAll({
+              windowTypes: ["popup"],
+            });
+            if (!approval) return null;
+            return {
+              parent: {
+                left: parent.left,
+                top: parent.top,
+                width: parent.width,
+              },
+              approval: {
+                left: approval.left,
+                top: approval.top,
+                width: approval.width,
+              },
+              topOffset: (approval.top ?? 0) - (parent.top ?? 0),
+              rightOffset:
+                (approval.left ?? 0) +
+                (approval.width ?? 0) -
+                (parent.left ?? 0) -
+                (parent.width ?? 0),
+            };
+          }),
+        )
+        .toMatchObject({ topOffset: 0, rightOffset: 0 });
+    }
     await popup.reload();
     await popup
       .getByRole("button", { name: `Review http://127.0.0.1:${bound.port}` })
