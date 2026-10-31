@@ -908,7 +908,7 @@ function review(preview: Preview, edit?: () => void) {
       }
     }, false),
   );
-  const actions = el("div", undefined, "action-grid");
+  const actions = el("div", undefined, "action-grid review-actions");
   actions.append(
     button(
       edit ? "Edit" : "Reject",

@@ -347,6 +347,9 @@ main h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-1);
 }
+.review-actions {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
 .wallet-overview {
   display: flex;
   flex-direction: column;
@@ -376,7 +379,7 @@ main h1 {
   display: contents;
   color: var(--color-text);
   font-size: 1.25rem;
-  font-weight: 550;
+  font-weight: 500;
   line-height: 1.2;
 }
 .balance-value {
@@ -489,8 +492,8 @@ main h1 {
   height: 16px;
 }
 .transfer-amount {
-  font-size: 2rem;
-  font-weight: 550;
+  font-size: 1.75rem;
+  font-weight: 500;
   line-height: 1.2;
   color: var(--color-text);
   text-align: center;
