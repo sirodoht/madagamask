@@ -86,25 +86,25 @@ wallet.dapps.onRequest = async (site) => {
       approvalWindowId = undefined;
     }
   }
-  const tab = await chrome.tabs.get(site.tabId);
-  const parent = await chrome.windows.get(tab.windowId);
   const width = 420;
-  const position =
-    parent.left !== undefined &&
-    parent.top !== undefined &&
-    parent.width !== undefined
-      ? {
-          left: parent.left + Math.max(0, parent.width - width),
-          top: parent.top,
-        }
-      : {};
-  const window = await chrome.windows.create({
-    url: popupUrl,
-    type: "popup",
-    width,
-    height: 720,
-    ...position,
-  });
+  const size = { url: popupUrl, type: "popup" as const, width, height: 720 };
+  // Placement is a convenience: it must never fail a site's request.
+  const placed = async () => {
+    const tab = await chrome.tabs.get(site.tabId);
+    const parent = await chrome.windows.get(tab.windowId);
+    return chrome.windows.create({
+      ...size,
+      ...(parent.left !== undefined &&
+      parent.top !== undefined &&
+      parent.width !== undefined
+        ? {
+            left: parent.left + Math.max(0, parent.width - width),
+            top: parent.top,
+          }
+        : {}),
+    });
+  };
+  const window = await placed().catch(() => chrome.windows.create(size));
   approvalWindowId = window?.id;
 };
 function closeFinishedApprovalWindow() {
