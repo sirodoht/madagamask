@@ -4,7 +4,7 @@ import {
   hashTypedData,
   type TypedDataDefinition,
 } from "viem";
-import { rpc, SIGNING_CHAINS } from "./networks.ts";
+import { rpc } from "./networks.ts";
 import type { Protection } from "./phishing.ts";
 import { reducePermission, validateSigningFields } from "./signing.ts";
 import { editAllowance } from "./tokens.ts";
@@ -276,20 +276,10 @@ export class Dapps {
         if (params.length !== 2 || address(params[1]) !== account.address)
           throw new ProviderError(4100, "Signature account does not match.");
         hexData(params[0]);
-        if (!SIGNING_CHAINS.has(network.id))
-          throw new ProviderError(
-            4901,
-            "Signing is not supported on this network.",
-          );
       } else if (method === "eth_signTypedData_v4") {
         if (params.length !== 2 || address(params[0]) !== account.address)
           throw new ProviderError(4100, "Signature account does not match.");
         typedData(params[1], network.id);
-        if (!SIGNING_CHAINS.has(network.id))
-          throw new ProviderError(
-            4901,
-            "Signing is not supported on this network.",
-          );
       } else if (method === "wallet_switchEthereumChain") {
         if (params.length !== 1)
           throw new ProviderError(-32602, "Expected one network.");

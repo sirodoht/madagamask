@@ -100,7 +100,7 @@ test("mainnet queues message and typed-data signatures for review", async () => 
   await wallet.run("rejectDapp", { id: typed.approval.id });
 });
 
-test("unsupported networks reject native sends and all supported signature methods", async () => {
+test("custom networks queue signatures for review; raw methods stay unsupported", async () => {
   const wallet = await setup({
     version: 1,
     items: [
@@ -117,15 +117,7 @@ test("unsupported networks reject native sends and all supported signature metho
   await wallet.run("approveDapp", { id: connect.approval.id });
   const [account] = (await connect.result()) as string[];
   assert.ok(account);
-  await assert.rejects(
-    wallet.run("prepareSend", { to: account, amount: "0.001" }),
-    /Signing is disabled/,
-  );
   for (const request of [
-    {
-      method: "eth_sendTransaction",
-      params: [{ from: account, to: account, value: "0x1", chainId: "0x89" }],
-    },
     { method: "personal_sign", params: ["0x6869", account] },
     {
       method: "eth_signTypedData_v4",
@@ -140,12 +132,29 @@ test("unsupported networks reject native sends and all supported signature metho
       ],
     },
   ]) {
-    await assert.rejects(
-      wallet.dapps.request(request, site),
-      /Signing is (disabled|not supported)/,
-    );
-    assert.deepEqual(wallet.dapps.approvals(), []);
+    const signing = await pending(wallet, request);
+    assert.equal(signing.approval.chainId, 137);
+    await wallet.run("rejectDapp", { id: signing.approval.id });
+    await assert.rejects(signing.result(), /rejected/i);
   }
+  await assert.rejects(
+    wallet.dapps.request(
+      {
+        method: "eth_signTypedData_v4",
+        params: [
+          account,
+          {
+            domain: { name: "Review fixture", chainId: 1 },
+            types: { Message: [{ name: "value", type: "uint256" }] },
+            primaryType: "Message",
+            message: { value: 1 },
+          },
+        ],
+      },
+      site,
+    ),
+    /another chain/,
+  );
   for (const method of [
     "eth_sign",
     "eth_signTransaction",

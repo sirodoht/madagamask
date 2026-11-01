@@ -70,16 +70,17 @@ test("locks, rejects a wrong password, and unlocks", async () => {
   assert.equal(await wallet.text(".address-value"), ADDRESS);
 });
 
-test("sends a native transfer to a local chain", async () => {
-  const { chain, url } = await startChain();
+test("sends a native transfer on a custom network", async () => {
+  const { chain, url } = await startChain(4242);
   try {
     await wallet.importWallet();
-    await wallet.addNetwork(url);
+    await wallet.addNetwork(url, 4242);
     assert.equal(await wallet.text(".balance-value"), "10000");
     await wallet.click("Send");
     await wallet.fill("Recipient address", RECIPIENT);
     await wallet.fill("Amount", "0.25");
     await wallet.click("Review transaction");
+    assert.match(await wallet.text(".approval-notice"), /not been tested/);
     await wallet.click("Confirm and send");
     await wallet.click("View activity");
     await wallet.driver.wait(

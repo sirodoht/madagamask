@@ -115,10 +115,10 @@ export class Wallet {
     await this.click("Import wallet");
     await this.field("Account");
   }
-  async addNetwork(rpc: string) {
+  async addNetwork(rpc: string, chainId = 31337) {
     await this.click("Settings");
     await this.click("Add or edit network");
-    await this.fill("Chain ID", "31337");
+    await this.fill("Chain ID", String(chainId));
     await this.fill("Network name", "Local test chain");
     await this.fill("Currency symbol", "ETH");
     await this.fill("RPC URL", rpc);
@@ -127,7 +127,7 @@ export class Wallet {
     await this.click("Back");
     await retryStale(async () =>
       (await this.field("Network"))
-        .findElement(By.css('option[value="31337"]'))
+        .findElement(By.css(`option[value="${chainId}"]`))
         .click(),
     );
     await this.driver.wait(
@@ -230,7 +230,7 @@ function port(server: Server) {
   return address.port;
 }
 
-export async function startChain() {
+export async function startChain(chainId = 31337) {
   const probe = createServer();
   await new Promise<void>((done) => probe.listen(0, "127.0.0.1", done));
   const number = port(probe);
@@ -238,7 +238,7 @@ export async function startChain() {
   const url = `http://127.0.0.1:${number}`;
   const chain: ChildProcess = spawn(
     "anvil",
-    ["--port", String(number), "--silent"],
+    ["--port", String(number), "--chain-id", String(chainId), "--silent"],
     { stdio: "ignore" },
   );
   for (let attempt = 0; attempt < 100; attempt += 1) {

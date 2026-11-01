@@ -148,7 +148,7 @@ Unsupported today and needed by real dapps. Old or deprecated methods, such as `
 
 ## EVM chains
 
-Signing on these chains follows Ethereum mainnet, and each one needs its own fee and RPC checks first.
+Any added network can sign, with an untested warning. Moving a chain into this built-in list needs its own fee and RPC checks first.
 
 | Chain           | Chain ID | Native currency |
 | --------------- | -------- | --------------- |

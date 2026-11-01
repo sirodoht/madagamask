@@ -1,5 +1,8 @@
 import { record, UserError } from "./validation.ts";
 
+// Any added network can sign; these are the ones covered without a warning.
+export const TESTED_CHAINS = new Set([1, 11155111, 84532, 31337, 1337]);
+
 export function readTypedData(value: unknown) {
   const data = record(typeof value === "string" ? JSON.parse(value) : value);
   return {

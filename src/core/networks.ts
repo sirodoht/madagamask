@@ -10,7 +10,6 @@ import { integer, record, text, UserError } from "./validation.ts";
 import type { Storage } from "./vault.ts";
 
 export type Network = { id: number; name: string; rpc: string; symbol: string };
-export const SIGNING_CHAINS = new Set([1, 11155111, 84532, 31337, 1337]);
 export const DEFAULT_NETWORKS: Network[] = [sepolia, baseSepolia, mainnet].map(
   (chain) => ({
     id: chain.id,

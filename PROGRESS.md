@@ -388,3 +388,9 @@ Target: roadmap milestones 1–7, through a testnet-only alpha. Hardware wallets
 - Enabled chain 1 for wallet sends, site transactions, and message and typed-data signatures, at the owner's direction. Added a real-ETH notice to mainnet review and signing screens. Other chains stay rejected.
 - Added tests against a local chain reporting ID 1, covering EIP-1559 chain binding, consumed reviews, site approval, and the review notice, without reaching Ethereum. The default mainnet RPC answered read, fee, and estimate calls and rejected a malformed raw transaction.
 - This is not an audit approval. No real mainnet transaction has been sent from automated tests, and `SECURITY.md` lists what remains before holding significant funds.
+
+### Signing on custom networks
+
+- Removed the signing allow-list, which blocked every added network outside the five built-in chains and gave no sign of it until a site's request failed. Wallet sends, site transactions, and message and typed-data signatures now work on any added network, each behind the usual review.
+- Networks outside the tested set show "Madagamask has not been tested on this custom network" on review and signing screens. Typed data naming another chain is still rejected, and raw signing methods stay unsupported.
+- New local-chain tests cover EIP-1559 and legacy fees on a custom chain ID, and a site adding a network, switching to it, signing, and sending. Chrome and Firefox tests cover the warning and a custom-network send. No real custom L1 has been tested.

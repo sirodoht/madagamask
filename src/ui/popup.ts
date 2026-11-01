@@ -5,6 +5,7 @@ import {
   readTypedData,
   signatureDeadline,
   spendingPermission,
+  TESTED_CHAINS,
 } from "../core/signing.ts";
 import type { Token } from "../core/tokens.ts";
 import type { Activity, Preview } from "../core/transactions.ts";
@@ -601,10 +602,18 @@ function approvalCard(title: string, rows: [string, string][]) {
 function approvalNotice(text: string) {
   return el("p", text, "approval-notice");
 }
-function mainnetNotice(chainId: number) {
-  return chainId === 1
-    ? [approvalNotice("Ethereum mainnet uses real ETH. This cannot be undone.")]
-    : [];
+function chainNotice(chainId: number) {
+  if (chainId === 1)
+    return [
+      approvalNotice("Ethereum mainnet uses real ETH. This cannot be undone."),
+    ];
+  return TESTED_CHAINS.has(chainId)
+    ? []
+    : [
+        approvalNotice(
+          "Madagamask has not been tested on this custom network. Its RPC can report misleading balances and transaction results.",
+        ),
+      ];
 }
 function technicalDetails(item: Approval) {
   const rows: [string, string][] = [["Method", item.method]];
@@ -725,7 +734,7 @@ function approval(item: Approval) {
     item.preview ||
     ["personal_sign", "eth_signTypedData_v4"].includes(item.method)
   )
-    app.append(...mainnetNotice(item.chainId));
+    app.append(...chainNotice(item.chainId));
   if (item.method === "eth_requestAccounts")
     app.append(
       el(
@@ -1155,7 +1164,7 @@ function review(preview: Preview, edit?: () => void) {
   const quantity = `${asset?.amount ?? preview.amount} ${asset?.symbol ?? preview.symbol}`;
   app.append(el("p", quantity, "transfer-amount"));
   app.append(transactionSummary(preview));
-  app.append(...mainnetNotice(preview.chainId));
+  app.append(...chainNotice(preview.chainId));
   if (preview.replacement)
     app.append(
       el(

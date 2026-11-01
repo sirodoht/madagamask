@@ -13,7 +13,6 @@ import {
   client,
   type Network,
   type Networks,
-  SIGNING_CHAINS,
   verifyChain,
 } from "./networks.ts";
 import { interpret } from "./tokens.ts";
@@ -183,10 +182,6 @@ export class Transactions {
     await this.ready;
     const generation = this.generation;
     const network = await this.networks.selected();
-    if (!SIGNING_CHAINS.has(network.id))
-      throw new UserError(
-        "Signing is disabled on this network. This alpha supports Ethereum, Sepolia, Base Sepolia, and local chains 31337/1337 only.",
-      );
     const account = this.vault.account();
     const epoch = this.vault.generation();
     const revision = this.networks.revision;

@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import {
-  client,
-  endpoint,
-  Networks,
-  rpc,
-  SIGNING_CHAINS,
-} from "../../src/core/networks.ts";
+import { client, endpoint, Networks, rpc } from "../../src/core/networks.ts";
 import { userErrorMessage } from "../../src/core/validation.ts";
 
 test("RPC URLs reject plaintext remote hosts, embedded credentials, and non-HTTP schemes", () => {
@@ -21,8 +15,6 @@ test("RPC URLs reject plaintext remote hosts, embedded credentials, and non-HTTP
     "javascript:alert(1)",
   ])
     assert.throws(() => endpoint(value));
-  assert.equal(SIGNING_CHAINS.has(1), true);
-  assert.equal(SIGNING_CHAINS.has(137), false);
 });
 test("custom networks verify chain ID and preserve selected-network balance context", async () => {
   const server = createServer(async (request, response) => {

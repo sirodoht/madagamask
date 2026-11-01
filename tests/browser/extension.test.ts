@@ -553,72 +553,84 @@ test("balance always shows every digit at one size", async () => {
   }
 });
 
-test("Ethereum reviews warn about real ETH and broadcast chain 1 transactions", async () => {
-  const portServer = createServer();
-  await new Promise<void>((resolve) =>
-    portServer.listen(0, "127.0.0.1", resolve),
-  );
-  const bound = portServer.address();
-  if (!bound || typeof bound === "string") throw new Error("No port");
-  await new Promise<void>((resolve) => portServer.close(() => resolve()));
-  const network: Network = {
-    id: 1,
-    name: "Ethereum",
-    symbol: "ETH",
-    rpc: `http://127.0.0.1:${bound.port}`,
-  };
-  const anvil = spawn(
-    "anvil",
-    ["--port", String(bound.port), "--chain-id", "1", "--silent"],
-    { stdio: "ignore" },
-  );
-  try {
-    await expect
-      .poll(() => rpc(network, "eth_chainId").catch(() => undefined))
-      .toBe("0x1");
-    await popup.evaluate(async (network) => {
-      const command = (action: string, params: Record<string, unknown>) =>
-        chrome.runtime.sendMessage({
-          version: 1,
-          type: "app:command",
-          action,
-          params,
-        });
-      await command("addNetwork", network);
-      await command("selectNetwork", { id: network.id });
-      await command("import", {
-        password: "disposable-mainnet-password",
-        phrase: "test test test test test test test test test test test junk",
-      });
-    }, network);
-    await popup.reload();
-    await expect(popup.locator(".balance")).toHaveText("10000 ETH");
-    await popup.getByRole("button", { name: "Send", exact: true }).click();
-    await popup
-      .getByLabel("Recipient address", { exact: true })
-      .fill("0x0000000000000000000000000000000000005678");
-    await popup.getByLabel("Amount", { exact: true }).fill("0.25");
-    await popup
-      .getByRole("button", { name: "Review transaction", exact: true })
-      .click();
-    await expect(popup.locator(".approval-notice")).toHaveText(
-      "Ethereum mainnet uses real ETH. This cannot be undone.",
+for (const [id, name, symbol, notice] of [
+  [
+    1,
+    "Ethereum",
+    "ETH",
+    "Ethereum mainnet uses real ETH. This cannot be undone.",
+  ],
+  [
+    4242,
+    "Custom chain",
+    "CST",
+    "Madagamask has not been tested on this custom network. Its RPC can report misleading balances and transaction results.",
+  ],
+] as const)
+  test(`${name} reviews show their notice and broadcast on chain ${id}`, async () => {
+    const portServer = createServer();
+    await new Promise<void>((resolve) =>
+      portServer.listen(0, "127.0.0.1", resolve),
     );
-    await popup
-      .getByRole("button", { name: "Confirm and send", exact: true })
-      .click();
-    await expect
-      .poll(() =>
-        rpc(network, "eth_getBalance", [
-          "0x0000000000000000000000000000000000005678",
-          "latest",
-        ]),
-      )
-      .toBe("0x3782dace9d90000");
-  } finally {
-    anvil.kill("SIGTERM");
-  }
-});
+    const bound = portServer.address();
+    if (!bound || typeof bound === "string") throw new Error("No port");
+    await new Promise<void>((resolve) => portServer.close(() => resolve()));
+    const network: Network = {
+      id,
+      name,
+      symbol,
+      rpc: `http://127.0.0.1:${bound.port}`,
+    };
+    const anvil = spawn(
+      "anvil",
+      ["--port", String(bound.port), "--chain-id", String(id), "--silent"],
+      { stdio: "ignore" },
+    );
+    try {
+      await expect
+        .poll(() => rpc(network, "eth_chainId").catch(() => undefined))
+        .toBe(`0x${id.toString(16)}`);
+      await popup.evaluate(async (network) => {
+        const command = (action: string, params: Record<string, unknown>) =>
+          chrome.runtime.sendMessage({
+            version: 1,
+            type: "app:command",
+            action,
+            params,
+          });
+        await command("addNetwork", network);
+        await command("selectNetwork", { id: network.id });
+        await command("import", {
+          password: "disposable-mainnet-password",
+          phrase: "test test test test test test test test test test test junk",
+        });
+      }, network);
+      await popup.reload();
+      await expect(popup.locator(".balance")).toHaveText(`10000 ${symbol}`);
+      await popup.getByRole("button", { name: "Send", exact: true }).click();
+      await popup
+        .getByLabel("Recipient address", { exact: true })
+        .fill("0x0000000000000000000000000000000000005678");
+      await popup.getByLabel("Amount", { exact: true }).fill("0.25");
+      await popup
+        .getByRole("button", { name: "Review transaction", exact: true })
+        .click();
+      await expect(popup.locator(".approval-notice")).toHaveText(notice);
+      await popup
+        .getByRole("button", { name: "Confirm and send", exact: true })
+        .click();
+      await expect
+        .poll(() =>
+          rpc(network, "eth_getBalance", [
+            "0x0000000000000000000000000000000000005678",
+            "latest",
+          ]),
+        )
+        .toBe("0x3782dace9d90000");
+    } finally {
+      anvil.kill("SIGTERM");
+    }
+  });
 
 test("popup applies its own font", async () => {
   expect(
