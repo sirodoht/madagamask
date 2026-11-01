@@ -1,5 +1,7 @@
 # Security design and alpha boundaries
 
+Track finding status, remediation decisions, and fix evidence in [AUDIT.md](AUDIT.md). The [2026-10-31 review report](AUDIT-2026-10-31.md) preserves the original assessment against its stated baseline.
+
 This is a testnet development wallet, not independently audited software. Do not import a recovery phrase or key used for real assets.
 
 ## Trust boundaries

@@ -4,7 +4,7 @@ A small, MIT-licensed Ethereum wallet extension with a vanilla TypeScript interf
 
 **This alpha is unaudited. Use small amounts you can afford to lose, and never import keys that hold significant assets.** The wallet signs on any network you add. Ethereum (1), Sepolia (11155111), Base Sepolia (84532), and local chains (31337 and 1337) are the tested ones; every other network shows an untested warning on review and signing screens. Mainnet signing exists for small-amount testing and is not approved for real-fund custody. A custom RPC is trusted infrastructure; chain IDs do not prove a network is safe.
 
-See [PROGRESS.md](PROGRESS.md) for implementation status, [VERIFICATION.md](VERIFICATION.md) for measured evidence and gaps, [ROADMAP.md](ROADMAP.md) for acceptance criteria, [SECURITY.md](SECURITY.md) for trust boundaries, and [DESIGN.md](DESIGN.md) for interface rules. Hardware wallets and public release are later milestones.
+See [PROGRESS.md](PROGRESS.md) for implementation status, [VERIFICATION.md](VERIFICATION.md) for measured evidence and gaps, [ROADMAP.md](ROADMAP.md) for acceptance criteria, [SECURITY.md](SECURITY.md) for trust boundaries, [AUDIT.md](AUDIT.md) for audit findings and remediation, and [DESIGN.md](DESIGN.md) for interface rules. Hardware wallets and public release are later milestones.
 
 ## Build and install
 
